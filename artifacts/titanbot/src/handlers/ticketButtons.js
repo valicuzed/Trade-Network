@@ -142,10 +142,10 @@ const createTicketHandler = {
 
       const traderInput = new TextInputBuilder()
         .setCustomId('other_trader')
-        .setLabel('Other traders @ (optional)')
+        .setLabel('Other traders @')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('@username or paste their User ID')
-        .setRequired(false)
+        .setRequired(true)
         .setMaxLength(100);
 
       const gameRow = new ActionRowBuilder().addComponents(gameInput);
