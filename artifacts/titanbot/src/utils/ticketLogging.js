@@ -19,6 +19,37 @@ export async function logTicketEvent({ client, guildId, event }) {
 
     const config = await getGuildConfig(client, guildId);
 
+    // For close events, check if this is a trade outcome (success/cancel).
+    // If so, post a clean trade result embed and skip all other lifecycle logs.
+    if (event.type === 'close') {
+      const closeReason = (event.reason || '').trim().toLowerCase();
+      const isTradeOutcome = closeReason === 'success' || closeReason === 'cancel';
+
+      if (isTradeOutcome) {
+        const logChannelId = config.ticketLogsChannelId || null;
+        if (!logChannelId) return;
+
+        const logChannel = guild.channels.cache.get(logChannelId)
+          || await guild.channels.fetch(logChannelId).catch(() => null);
+        if (!logChannel) return;
+
+        const permissions = logChannel.permissionsFor(guild.members.me);
+        if (!permissions.has(['SendMessages', 'EmbedLinks'])) return;
+
+        const embed = await createTradeOutcomeEmbed(guild, event, closeReason === 'success');
+        await logChannel.send({ embeds: [embed] });
+        logger.info(`Trade outcome logged (${closeReason}) in guild ${guildId}`);
+      }
+      // All other close reasons: skip logging to the public channel entirely.
+      return;
+    }
+
+    // Suppress all other lifecycle events (open, delete, claim, etc.)
+    // from posting to the public log channel.
+    if (['open', 'delete', 'claim', 'unclaim', 'priority', 'pin', 'unpin'].includes(event.type)) {
+      return;
+    }
+
     const logChannelId = getLogChannelForEventType(config, event.type);
     if (!logChannelId) {
       return;
@@ -49,6 +80,33 @@ export async function logTicketEvent({ client, guildId, event }) {
   } catch (error) {
     logger.error('Error logging ticket event:', error);
   }
+}
+
+function parseTradeReason(raw) {
+  if (!raw) return { game: null, trade: null };
+  const gameMatch = raw.match(/\*\*Game:\*\*\s*(.+)/);
+  const tradeMatch = raw.match(/\*\*Trade:\*\*\s*([\s\S]+)/);
+  return {
+    game: gameMatch ? gameMatch[1].trim() : null,
+    trade: tradeMatch ? tradeMatch[1].trim() : null,
+  };
+}
+
+async function createTradeOutcomeEmbed(guild, event, isSuccess) {
+  const { EmbedBuilder } = await import('discord.js');
+  const { game, trade } = parseTradeReason(event.metadata?.tradeReason);
+  const creatorMention = event.userId ? `<@${event.userId}>` : 'Unknown';
+
+  const embed = new EmbedBuilder()
+    .setTitle(isSuccess ? '✅ Trade Successful' : '❌ Trade Canceled')
+    .setColor(isSuccess ? 0x57F287 : 0xED4245)
+    .setTimestamp();
+
+  if (game) embed.addFields({ name: 'Game', value: game, inline: true });
+  if (trade) embed.addFields({ name: 'Trade', value: trade, inline: false });
+  embed.addFields({ name: 'Creator', value: creatorMention, inline: true });
+
+  return embed;
 }
 
 export async function logTicketFeedback({

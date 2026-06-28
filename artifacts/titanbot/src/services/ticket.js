@@ -406,7 +406,8 @@ components: []
         metadata: {
           dmSent: dmOnClose,
           closedAt: ticketData.closedAt,
-          movedToClosedCategory
+          movedToClosedCategory,
+          tradeReason: ticketData.reason || null,
         }
       }
     });
