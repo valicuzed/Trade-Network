@@ -1,5 +1,5 @@
 import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, AttachmentBuilder, MessageFlags } from 'discord.js';
-import { createEmbed, successEmbed } from '../utils/embeds.js';
+import { createEmbed, successEmbed, errorEmbed } from '../utils/embeds.js';
 import { createTicket, closeTicket, claimTicket, updateTicketPriority } from '../services/ticket.js';
 import { getGuildConfig } from '../services/guildConfig.js';
 import { logTicketEvent } from '../utils/ticketLogging.js';
@@ -218,11 +218,11 @@ const closeTicketHandler = {
 
       const reasonInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel('Reason for closing (optional)')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Add an optional reason for closing this ticket...')
-        .setRequired(false)
-        .setMaxLength(1000);
+        .setLabel("Type 'success' or 'cancel' to close")
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder("success  /  cancel")
+        .setRequired(true)
+        .setMaxLength(10);
 
       const actionRow = new ActionRowBuilder().addComponents(reasonInput);
       modal.addComponents(actionRow);
@@ -260,8 +260,15 @@ const closeTicketModalHandler = {
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
 
-      const providedReason = interaction.fields.getTextInputValue('reason')?.trim();
-      const reason = providedReason || 'Closed via ticket button without a specific reason.';
+      const providedReason = interaction.fields.getTextInputValue('reason')?.trim().toLowerCase();
+      if (providedReason !== 'success' && providedReason !== 'cancel') {
+        await interaction.editReply({
+          embeds: [errorEmbed('Invalid Input', "You must type exactly **success** or **cancel** to close this ticket.")],
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      const reason = providedReason;
 
       const result = await closeTicket(interaction.channel, interaction.user, reason);
 

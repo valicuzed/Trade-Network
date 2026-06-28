@@ -134,6 +134,15 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
             PermissionFlagsBits.ReadMessageHistory,
           ],
         }] : []),
+        ...(config.ticketStaffRoleId2 ? [{
+          id: config.ticketStaffRoleId2,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        }] : []),
       ],
     });
     
@@ -180,8 +189,9 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
       );
     }
     
-    const staffMention = config.ticketStaffRoleId ? ` <@&${config.ticketStaffRoleId}>` : '';
-    const messageContent = `${member.toString()}${staffMention}`;
+    const staffMention1 = config.ticketStaffRoleId ? ` <@&${config.ticketStaffRoleId}>` : '';
+    const staffMention2 = config.ticketStaffRoleId2 ? ` <@&${config.ticketStaffRoleId2}>` : '';
+    const messageContent = `${member.toString()}${staffMention1}${staffMention2}`;
     
     const ticketMessage = await channel.send({ 
       content: messageContent,
@@ -455,6 +465,20 @@ export async function claimTicket(channel, claimer) {
     ticketData.claimedAt = new Date().toISOString();
     
     await saveTicketData(channel.guild.id, channel.id, ticketData);
+
+    // Remove the staff roles' view access so unclaimed middlemen can no longer see this ticket.
+    // The claimer gets an explicit allow so they keep access.
+    const claimConfig = await getGuildConfig(channel.client, channel.guild.id);
+    const staffRoleIds = [claimConfig.ticketStaffRoleId, claimConfig.ticketStaffRoleId2].filter(Boolean);
+    for (const roleId of staffRoleIds) {
+      await channel.permissionOverwrites.edit(roleId, { ViewChannel: false }).catch(() => {});
+    }
+    await channel.permissionOverwrites.edit(claimer.id, {
+      ViewChannel: true,
+      SendMessages: true,
+      AttachFiles: true,
+      ReadMessageHistory: true,
+    }).catch(() => {});
     
     const messages = await channel.messages.fetch();
     const ticketMessage = messages.find(m => 
