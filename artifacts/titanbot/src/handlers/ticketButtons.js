@@ -140,9 +140,18 @@ const createTicketHandler = {
         .setRequired(true)
         .setMaxLength(1000);
 
+      const traderInput = new TextInputBuilder()
+        .setCustomId('other_trader')
+        .setLabel('Other traders @ (optional)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('@username or paste their User ID')
+        .setRequired(false)
+        .setMaxLength(100);
+
       const gameRow = new ActionRowBuilder().addComponents(gameInput);
       const descRow = new ActionRowBuilder().addComponents(descInput);
-      modal.addComponents(gameRow, descRow);
+      const traderRow = new ActionRowBuilder().addComponents(traderInput);
+      modal.addComponents(gameRow, descRow, traderRow);
 
       await interaction.showModal(modal);
     } catch (error) {
@@ -165,15 +174,36 @@ const createTicketModalHandler = {
       
       const tradeGame = interaction.fields.getTextInputValue('trade_game');
       const tradeDesc = interaction.fields.getTextInputValue('reason');
+      const otherTraderRaw = interaction.fields.getTextInputValue('other_trader')?.trim() || '';
       const reason = `**Game:** ${tradeGame}\n**Trade:** ${tradeDesc}`;
       const config = await getGuildConfig(client, interaction.guildId);
       const categoryId = config.ticketCategoryId || null;
-      
+
+      // Parse user mention (<@123>) or raw user ID
+      let extraUserId = null;
+      if (otherTraderRaw) {
+        const mentionMatch = otherTraderRaw.match(/^<@!?(\d+)>$/);
+        if (mentionMatch) {
+          extraUserId = mentionMatch[1];
+        } else if (/^\d{17,20}$/.test(otherTraderRaw)) {
+          extraUserId = otherTraderRaw;
+        } else {
+          // Try to find by username in the guild
+          const found = interaction.guild.members.cache.find(
+            m => m.user.username.toLowerCase() === otherTraderRaw.replace(/^@/, '').toLowerCase()
+              || m.displayName.toLowerCase() === otherTraderRaw.replace(/^@/, '').toLowerCase()
+          );
+          if (found) extraUserId = found.id;
+        }
+      }
+
       const result = await createTicket(
         interaction.guild,
         interaction.member,
         categoryId,
-        reason
+        reason,
+        'none',
+        extraUserId
       );
       
       if (result.success) {

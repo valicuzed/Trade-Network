@@ -61,7 +61,7 @@ export async function getUserTicketCount(guildId, userId) {
   }
 }
 
-export async function createTicket(guild, member, categoryId, reason = 'No reason provided', priority = 'none') {
+export async function createTicket(guild, member, categoryId, reason = 'No reason provided', priority = 'none', extraUserId = null) {
   try {
     const config = await getGuildConfig(guild.client, guild.id);
     const ticketConfig = config.tickets || {};
@@ -143,6 +143,15 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
             PermissionFlagsBits.ReadMessageHistory,
           ],
         }] : []),
+        ...(extraUserId && extraUserId !== member.id ? [{
+          id: extraUserId,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        }] : []),
       ],
     });
     
@@ -191,7 +200,8 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     
     const staffMention1 = config.ticketStaffRoleId ? ` <@&${config.ticketStaffRoleId}>` : '';
     const staffMention2 = config.ticketStaffRoleId2 ? ` <@&${config.ticketStaffRoleId2}>` : '';
-    const messageContent = `${member.toString()}${staffMention1}${staffMention2}`;
+    const extraUserMention = (extraUserId && extraUserId !== member.id) ? ` <@${extraUserId}>` : '';
+    const messageContent = `${member.toString()}${extraUserMention}${staffMention1}${staffMention2}`;
     
     const ticketMessage = await channel.send({ 
       content: messageContent,
