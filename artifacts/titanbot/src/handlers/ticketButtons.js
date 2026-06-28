@@ -128,7 +128,7 @@ const createTicketHandler = {
         .setCustomId('trade_game')
         .setLabel('Game (where the trade takes place)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. Roblox, Fortnite, Rocket League...')
+        .setPlaceholder('e.g. GAG 2, Donut SMP...')
         .setRequired(true)
         .setMaxLength(100);
 
