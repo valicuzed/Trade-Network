@@ -126,9 +126,9 @@ const createTicketHandler = {
 
       const reasonInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel('Why are you creating this ticket?')
+        .setLabel('State the game your trade will take place in and describe the trade.')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Describe your issue...')
+        .setPlaceholder('Describe your trade...')
         .setRequired(true)
         .setMaxLength(1000);
 
