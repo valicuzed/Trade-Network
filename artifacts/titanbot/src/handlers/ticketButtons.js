@@ -124,16 +124,25 @@ const createTicketHandler = {
         .setCustomId('create_ticket_modal')
         .setTitle('Create a Ticket');
 
-      const reasonInput = new TextInputBuilder()
+      const gameInput = new TextInputBuilder()
+        .setCustomId('trade_game')
+        .setLabel('Game (where the trade takes place)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('e.g. Roblox, Fortnite, Rocket League...')
+        .setRequired(true)
+        .setMaxLength(100);
+
+      const descInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel('State the game your trade will take place in and describe the trade.')
+        .setLabel('Describe your trade')
         .setStyle(TextInputStyle.Paragraph)
         .setPlaceholder('Describe your trade...')
         .setRequired(true)
         .setMaxLength(1000);
 
-      const actionRow = new ActionRowBuilder().addComponents(reasonInput);
-      modal.addComponents(actionRow);
+      const gameRow = new ActionRowBuilder().addComponents(gameInput);
+      const descRow = new ActionRowBuilder().addComponents(descInput);
+      modal.addComponents(gameRow, descRow);
 
       await interaction.showModal(modal);
     } catch (error) {
@@ -154,7 +163,9 @@ const createTicketModalHandler = {
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
       
-      const reason = interaction.fields.getTextInputValue('reason');
+      const tradeGame = interaction.fields.getTextInputValue('trade_game');
+      const tradeDesc = interaction.fields.getTextInputValue('reason');
+      const reason = `**Game:** ${tradeGame}\n**Trade:** ${tradeDesc}`;
       const config = await getGuildConfig(client, interaction.guildId);
       const categoryId = config.ticketCategoryId || null;
       
