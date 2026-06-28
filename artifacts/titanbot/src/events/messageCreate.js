@@ -1,4 +1,4 @@
-import { Events } from 'discord.js';
+import { Events, EmbedBuilder, Colors } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { getLevelingConfig, getUserLevelData } from '../services/leveling.js';
 import { addXp } from '../services/xpSystem.js';
@@ -17,6 +17,7 @@ import {
   isValidCountingMessage,
   recordCorrectCount,
 } from '../services/countingGameService.js';
+import { getTicketData } from '../utils/database.js';
 
 const MESSAGE_XP_RATE_LIMIT_ATTEMPTS = 12;
 const MESSAGE_XP_RATE_LIMIT_WINDOW_MS = 10000;
@@ -30,18 +31,110 @@ export default {
       logger.debug(`Message received from ${message.author.tag}: ${message.content}`);
 
       const countingProcessed = await handleCountingGame(message, client);
-      if (countingProcessed) {
-        return;
-      }
+      if (countingProcessed) return;
+
+      const ticketCommandProcessed = await handleTicketCommands(message, client);
+      if (ticketCommandProcessed) return;
 
       await handlePrefixCommand(message, client);
-
       await handleLeveling(message, client);
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
   }
 };
+
+async function handleTicketCommands(message, client) {
+  const cmd = message.content.trim().toLowerCase();
+  if (cmd !== '!deconf' && cmd !== '!relconf') return false;
+
+  try {
+    const guildConfig = await getGuildConfig(client, message.guild.id);
+    const staffRoleId = guildConfig?.ticketStaffRoleId;
+    const staffRoleId2 = guildConfig?.ticketStaffRoleId2;
+
+    const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+    if (!member) return false;
+
+    const isStaff =
+      (staffRoleId && member.roles.cache.has(staffRoleId)) ||
+      (staffRoleId2 && member.roles.cache.has(staffRoleId2));
+
+    if (!isStaff) {
+      const reply = await message.reply({ content: '❌ Only middlemen can use this command.' });
+      setTimeout(() => reply.delete().catch(() => {}), 5000);
+      await message.delete().catch(() => {});
+      return true;
+    }
+
+    const ticketData = await getTicketData(message.guild.id, message.channel.id);
+    if (!ticketData) {
+      const reply = await message.reply({ content: '❌ This command can only be used inside a ticket channel.' });
+      setTimeout(() => reply.delete().catch(() => {}), 5000);
+      await message.delete().catch(() => {});
+      return true;
+    }
+
+    const ticketCreator = await message.guild.members.fetch(ticketData.userId).catch(() => null);
+    const ticketNumber = ticketData.id ? `<#${message.channel.id}>` : message.channel.toString();
+
+    if (cmd === '!deconf') {
+      const targetChannel = message.guild.channels.cache.find(
+        c => c.name === 'deposit-confirmations'
+      );
+      if (!targetChannel) {
+        const reply = await message.reply({ content: '❌ Could not find a channel named `deposit-confirmations`.' });
+        setTimeout(() => reply.delete().catch(() => {}), 7000);
+        await message.delete().catch(() => {});
+        return true;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Deposit Confirmed')
+        .setColor(Colors.Green)
+        .setDescription(
+          `Both traders have deposited their items to the middleman.\n\n` +
+          `**Ticket:** ${ticketNumber}\n` +
+          `**Trader:** ${ticketCreator ? ticketCreator.toString() : `<@${ticketData.userId}>`}\n` +
+          `**Middleman:** ${member.toString()}`
+        )
+        .setTimestamp();
+
+      await targetChannel.send({ embeds: [embed] });
+      await message.delete().catch(() => {});
+
+    } else if (cmd === '!relconf') {
+      const targetChannel = message.guild.channels.cache.find(
+        c => c.name === 'release-confirmation'
+      );
+      if (!targetChannel) {
+        const reply = await message.reply({ content: '❌ Could not find a channel named `release-confirmation`.' });
+        setTimeout(() => reply.delete().catch(() => {}), 7000);
+        await message.delete().catch(() => {});
+        return true;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('🎉 Release Confirmed')
+        .setColor(Colors.Gold)
+        .setDescription(
+          `The middleman has released the items. Trade complete!\n\n` +
+          `**Ticket:** ${ticketNumber}\n` +
+          `**Trader:** ${ticketCreator ? ticketCreator.toString() : `<@${ticketData.userId}>`}\n` +
+          `**Middleman:** ${member.toString()}`
+        )
+        .setTimestamp();
+
+      await targetChannel.send({ embeds: [embed] });
+      await message.delete().catch(() => {});
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('Error handling ticket command:', error);
+    return false;
+  }
+}
 
 async function handlePrefixCommand(message, client) {
   try {
