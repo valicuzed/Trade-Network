@@ -175,7 +175,38 @@ const createTicketHandler = {
       const systemName = effectiveConfig.ticketSystemName?.toLowerCase() ?? '';
       const isMiddlemanSystem = systemName.includes('middleman');
       const isDisputeSystem = systemName.includes('dispute');
+      const isScamSystem = systemName.includes('scam');
       const isNoModalSystem = isMiddlemanSystem || isDisputeSystem;
+
+      if (isScamSystem) {
+        const scamModalCustomId = systemId ? `create_scam_ticket_modal:${systemId}` : 'create_scam_ticket_modal';
+        const scamModal = new ModalBuilder()
+          .setCustomId(scamModalCustomId)
+          .setTitle('Report a Scam');
+
+        const gameInput = new TextInputBuilder()
+          .setCustomId('scam_game')
+          .setLabel('What game did the scam take place in?')
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('e.g. GAG 2, Donut SMP...')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        const scammerInput = new TextInputBuilder()
+          .setCustomId('scammer_mention')
+          .setLabel("Scammer's @ or username")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('@username or paste their User ID')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        scamModal.addComponents(
+          new ActionRowBuilder().addComponents(gameInput),
+          new ActionRowBuilder().addComponents(scammerInput),
+        );
+        await interaction.showModal(scamModal);
+        return;
+      }
 
       if (isNoModalSystem) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -335,6 +366,62 @@ const createTicketModalHandler = {
     } catch (error) {
       logger.error('Error creating ticket:', error);
       await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while creating your ticket.' });
+    }
+  }
+};
+
+const createScamTicketModalHandler = {
+  name: 'create_scam_ticket_modal',
+  async execute(interaction, client, args) {
+    try {
+      if (!(await ensureGuildContext(interaction))) return;
+
+      const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
+      if (!deferSuccess) return;
+
+      const systemId = args?.[0] || null;
+      const config = await getGuildConfig(client, interaction.guildId);
+      const systemConfig = systemId ? (config.ticketSystems?.[systemId] ?? null) : null;
+      const effectiveConfig = systemConfig ? { ...config, ...systemConfig } : config;
+      const categoryId = effectiveConfig.ticketCategoryId || null;
+
+      const scamGame = interaction.fields.getTextInputValue('scam_game')?.trim() || 'Unknown game';
+      const scammerRaw = interaction.fields.getTextInputValue('scammer_mention')?.trim() || 'Unknown';
+
+      // Use only the game as the ticket reason (channel name stays clean)
+      const reason = `Scam Report – ${scamGame}`;
+
+      const result = await createTicket(
+        interaction.guild,
+        interaction.member,
+        categoryId,
+        reason,
+        'none',
+        null,
+        systemConfig
+      );
+
+      if (result.success) {
+        // Send scammer info as the first message (not in channel name)
+        await result.channel.send({
+          content: [
+            '### Scam Report',
+            `**Game:** ${scamGame}`,
+            `**Reported scammer:** ${scammerRaw}`,
+            '',
+            'Please provide any screenshots or evidence below.',
+          ].join('\n'),
+        });
+
+        await interaction.editReply({
+          embeds: [successEmbed('Report Opened', `Your scam report has been created in ${result.channel}!`)],
+        });
+      } else {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to create ticket.' });
+      }
+    } catch (error) {
+      logger.error('Error creating scam ticket:', error);
+      await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while creating your report.' });
     }
   }
 };
@@ -974,7 +1061,8 @@ const deleteTicketHandler = {
 
 export default createTicketHandler;
 export { 
-  createTicketModalHandler, 
+  createTicketModalHandler,
+  createScamTicketModalHandler,
   closeTicketModalHandler,
   closeDisputeModalHandler,
   closeMMModalHandler,
