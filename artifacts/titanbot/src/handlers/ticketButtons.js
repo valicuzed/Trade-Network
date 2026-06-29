@@ -1,4 +1,4 @@
-import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, AttachmentBuilder, MessageFlags } from 'discord.js';
+import { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, AttachmentBuilder, MessageFlags, EmbedBuilder } from 'discord.js';
 import { createEmbed, successEmbed, errorEmbed } from '../utils/embeds.js';
 import { createTicket, closeTicket, claimTicket, updateTicketPriority } from '../services/ticket.js';
 import { getGuildConfig } from '../services/guildConfig.js';
@@ -126,6 +126,50 @@ const createTicketHandler = {
         return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `You have reached the maximum number of open tickets (${maxTicketsPerUser}).\n\nPlease close your existing tickets before creating a new one.\n\n**Current Tickets:** ${currentTicketCount}/${maxTicketsPerUser}` });
       }
       
+      // ── Eligibility checks (system-specific) ──────────────────────────────
+      const minMembershipDays = effectiveConfig.minMembershipDays || 0;
+      const minSuccessfulTrades = effectiveConfig.minSuccessfulTrades || 0;
+
+      if (minMembershipDays > 0 || minSuccessfulTrades > 0) {
+        const failures = [];
+
+        if (minMembershipDays > 0) {
+          const joinedAt = interaction.member.joinedTimestamp;
+          const daysSinceJoin = joinedAt ? (Date.now() - joinedAt) / 86_400_000 : 0;
+          if (daysSinceJoin < minMembershipDays) {
+            const daysLeft = Math.ceil(minMembershipDays - daysSinceJoin);
+            failures.push(
+              `❌ **Server membership:** Must be a member for at least **${minMembershipDays} day${minMembershipDays !== 1 ? 's' : ''}**.\nYou joined <t:${Math.floor(joinedAt / 1000)}:R> — **${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining**.`,
+            );
+          }
+        }
+
+        if (minSuccessfulTrades > 0) {
+          const { getClosedTicketCountForUser } = await import('../utils/database/tickets.js');
+          const closedCount = await getClosedTicketCountForUser(interaction.guildId, interaction.user.id);
+          if (closedCount < minSuccessfulTrades) {
+            failures.push(
+              `❌ **Successful trades:** Need at least **${minSuccessfulTrades} successful trade${minSuccessfulTrades !== 1 ? 's' : ''}**.\nYou currently have **${closedCount}**.`,
+            );
+          }
+        }
+
+        if (failures.length > 0) {
+          await interaction.reply({
+            embeds: [
+              new EmbedBuilder()
+                .setTitle('⛔ Eligibility Requirements Not Met')
+                .setDescription(`You do not meet the requirements to apply:\n\n${failures.join('\n\n')}`)
+                .setColor(0xED4245)
+                .setFooter({ text: 'Meet the requirements above and try again.' }),
+            ],
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       const modalCustomId = systemId ? `create_ticket_modal:${systemId}` : 'create_ticket_modal';
       const modal = new ModalBuilder()
         .setCustomId(modalCustomId)

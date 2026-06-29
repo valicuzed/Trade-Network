@@ -54,6 +54,44 @@ export async function getOpenTicketCountForUser(guildId, userId) {
     }
 }
 
+export async function getClosedTicketCountForUser(guildId, userId) {
+    try {
+        if (!db.initialized) {
+            await db.initialize();
+        }
+
+        if (db.db?.pool && typeof db.db.isAvailable === 'function' && db.db.isAvailable()) {
+            const { pgConfig } = await import('../../config/postgres.js');
+            const result = await db.db.pool.query(
+                `SELECT COUNT(*)::int AS count FROM ${pgConfig.tables.tickets}
+                 WHERE guild_id = $1
+                   AND data->>'userId' = $2
+                   AND data->>'status' = 'closed'`,
+                [guildId, userId],
+            );
+            return Number(result.rows?.[0]?.count || 0);
+        }
+
+        if (typeof db.list === 'function') {
+            const ticketKeys = await db.list(`guild:${guildId}:ticket:`);
+            let count = 0;
+            for (const key of ticketKeys) {
+                if (key.endsWith(':counter')) continue;
+                const ticket = await getFromDb(key, null);
+                if (ticket && ticket.userId === userId && ticket.status === 'closed') {
+                    count += 1;
+                }
+            }
+            return count;
+        }
+
+        return 0;
+    } catch (error) {
+        logger.error(`Error counting closed tickets for user ${userId} in guild ${guildId}:`, error);
+        return 0;
+    }
+}
+
 export async function saveTicketData(guildId, channelId, data) {
     if (!db.initialized) {
         await db.initialize();

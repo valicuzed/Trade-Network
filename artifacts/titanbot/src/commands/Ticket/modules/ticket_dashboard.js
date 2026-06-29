@@ -212,6 +212,16 @@ function buildDashboardEmbed(config, guild, panelStatus = null, ticketStats = nu
             { name: 'Open Tickets', value: openTickets, inline: true },
             { name: 'Avg Close Time', value: avgCloseTime, inline: true },
             { name: 'Feedback Rating', value: feedbackSummary, inline: true },
+            {
+                name: '🎯 Eligibility Requirements',
+                value: (() => {
+                    const parts = [];
+                    if (config.minMembershipDays > 0) parts.push(`${config.minMembershipDays}d membership`);
+                    if (config.minSuccessfulTrades > 0) parts.push(`${config.minSuccessfulTrades} trades`);
+                    return parts.length > 0 ? parts.join(' · ') : '`None`';
+                })(),
+                inline: false,
+            },
         )
         .setFooter({ text: 'Select an option below • Dashboard closes after 10 minutes of inactivity' })
         .setTimestamp();
@@ -258,6 +268,11 @@ function buildSelectMenu(guildId, systemId = 'default') {
                 .setDescription('Channel to receive auto-generated transcripts on deletion')
                 .setValue('transcript_channel')
                 .setEmoji('📜'),
+            new StringSelectMenuOptionBuilder()
+                .setLabel('Eligibility Requirements')
+                .setDescription('Min. membership days and successful trades required to open a ticket')
+                .setValue('eligibility')
+                .setEmoji('🎯'),
         );
 }
 
@@ -445,6 +460,9 @@ async function openSystemDashboard(interaction, rootConfig, systemId, client) {
                     break;
                 case 'transcript_channel':
                     await handleTranscriptChannel(selectInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
+                    break;
+                case 'eligibility':
+                    await handleEligibilityRequirements(selectInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
                     break;
             }
         },
@@ -985,6 +1003,78 @@ async function handleTranscriptChannel(selectInteraction, rootInteraction, syste
             }).catch(() => {});
         }
     });
+}
+
+async function handleEligibilityRequirements(selectInteraction, rootInteraction, systemConfig, guildId, client, rootConfig, systemId) {
+    const modal = new ModalBuilder()
+        .setCustomId('ticket_cfg_eligibility')
+        .setTitle('🎯 Eligibility Requirements')
+        .addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('min_days')
+                    .setLabel('Min. membership days (0 = disabled)')
+                    .setStyle(TextInputStyle.Short)
+                    .setValue(String(systemConfig.minMembershipDays || 0))
+                    .setMaxLength(3)
+                    .setRequired(true)
+                    .setPlaceholder('5'),
+            ),
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('min_trades')
+                    .setLabel('Min. successful trades (0 = disabled)')
+                    .setStyle(TextInputStyle.Short)
+                    .setValue(String(systemConfig.minSuccessfulTrades || 0))
+                    .setMaxLength(3)
+                    .setRequired(true)
+                    .setPlaceholder('5'),
+            ),
+        );
+
+    await selectInteraction.showModal(modal);
+
+    const submitted = await selectInteraction
+        .awaitModalSubmit({
+            filter: i =>
+                i.customId === 'ticket_cfg_eligibility' && i.user.id === selectInteraction.user.id,
+            time: 120_000,
+        })
+        .catch(() => null);
+
+    if (!submitted) return;
+
+    const minDays = parseInt(submitted.fields.getTextInputValue('min_days').trim(), 10);
+    const minTrades = parseInt(submitted.fields.getTextInputValue('min_trades').trim(), 10);
+
+    if (Number.isNaN(minDays) || minDays < 0 || minDays > 365) {
+        return replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: 'Membership days must be a number between **0** and **365**.' });
+    }
+    if (Number.isNaN(minTrades) || minTrades < 0 || minTrades > 100) {
+        return replyUserError(submitted, { type: ErrorTypes.VALIDATION, message: 'Successful trades must be a number between **0** and **100**.' });
+    }
+
+    systemConfig.minMembershipDays = minDays;
+    systemConfig.minSuccessfulTrades = minTrades;
+    await client.db.set(getGuildConfigKey(guildId), rootConfig);
+
+    const parts = [];
+    if (minDays > 0) parts.push(`**${minDays}** day${minDays !== 1 ? 's' : ''} membership`);
+    if (minTrades > 0) parts.push(`**${minTrades}** successful trade${minTrades !== 1 ? 's' : ''}`);
+
+    await submitted.reply({
+        embeds: [
+            successEmbed(
+                '✅ Eligibility Requirements Updated',
+                parts.length > 0
+                    ? `Users must have ${parts.join(' and ')} to open a ticket in this system.`
+                    : 'All eligibility requirements have been **disabled** — anyone can open a ticket.',
+            ),
+        ],
+        flags: MessageFlags.Ephemeral,
+    });
+
+    await refreshDashboard(rootInteraction, systemConfig, guildId, client, rootConfig, systemId);
 }
 
 async function handleCheckUser(selectInteraction, rootInteraction, systemConfig, guildId, client) {
