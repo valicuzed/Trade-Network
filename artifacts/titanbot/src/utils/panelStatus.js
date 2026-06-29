@@ -118,6 +118,17 @@ export async function getTicketPanelStatus(client, guild, config) {
     });
 }
 
+export async function getTicketSystemPanelStatus(client, guild, config, systemId = 'default') {
+    const buttonCustomId = (!systemId || systemId === 'default')
+        ? 'create_ticket'
+        : `create_ticket:${systemId}`;
+    return getBotPanelStatus(client, guild, {
+        channelId: config.ticketPanelChannelId,
+        messageId: config.ticketPanelMessageId,
+        buttonCustomId,
+    });
+}
+
 export async function getVerificationPanelStatus(client, guild, config) {
     return getBotPanelStatus(client, guild, {
         channelId: config?.channelId,

@@ -84,12 +84,23 @@ export default {
                         .setName("dm_on_close")
                         .setDescription("Send DM to user when their ticket is closed (default: true)")
                         .setRequired(false),
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName("name")
+                        .setDescription("Name for this system (e.g. 'Middleman Application'). Required when adding a 2nd+ system.")
+                        .setRequired(false),
                 ),
         )
         .addSubcommand((subcommand) =>
             subcommand
                 .setName("dashboard")
                 .setDescription("Open the interactive ticket system dashboard"),
+        )
+        .addSubcommand((subcommand) =>
+            subcommand
+                .setName("list")
+                .setDescription("List all configured ticket systems for this server"),
         ),
     category: "ticket",
 
