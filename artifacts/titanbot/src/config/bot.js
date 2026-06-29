@@ -487,13 +487,6 @@ export function validateConfig(config) {
     errors.push("Client ID is required (CLIENT_ID environment variable)");
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    const hasDatabaseUrl = !!process.env.DATABASE_URL;
-    const hasIndividualVars = process.env.POSTGRES_HOST && process.env.POSTGRES_USER && process.env.POSTGRES_PASSWORD;
-    if (!hasDatabaseUrl && !hasIndividualVars) {
-      errors.push("A database connection is required in production. Set DATABASE_URL or POSTGRES_HOST + POSTGRES_USER + POSTGRES_PASSWORD.");
-    }
-  }
 
   return errors;
 }
