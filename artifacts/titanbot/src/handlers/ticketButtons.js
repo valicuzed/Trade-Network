@@ -129,8 +129,9 @@ const createTicketHandler = {
       // ── Eligibility checks (system-specific) ──────────────────────────────
       const minMembershipDays = effectiveConfig.minMembershipDays || 0;
       const minSuccessfulTrades = effectiveConfig.minSuccessfulTrades || 0;
+      const isOwner = interaction.user.id === interaction.guild.ownerId;
 
-      if (minMembershipDays > 0 || minSuccessfulTrades > 0) {
+      if (!isOwner && (minMembershipDays > 0 || minSuccessfulTrades > 0)) {
         const failures = [];
 
         if (minMembershipDays > 0) {
