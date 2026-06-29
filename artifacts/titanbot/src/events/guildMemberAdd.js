@@ -102,6 +102,19 @@ export default {
             }
         }
         
+        // ── Auto-assign Trader role on join ───────────────────────────────
+        try {
+            const traderRole = guild.roles.cache.find(r =>
+                r.name.toLowerCase() === 'trader'
+            );
+            if (traderRole) {
+                await assignRoleSafely(member, traderRole);
+            }
+        } catch (err) {
+            logger.warn(`Failed to auto-assign Trader role on join: ${err.message}`);
+        }
+        // ──────────────────────────────────────────────────────────────────
+
         if (config?.verification?.enabled || config?.verification?.autoVerify?.enabled) {
             await handleVerification(member, guild, config.verification, member.client);
         }
