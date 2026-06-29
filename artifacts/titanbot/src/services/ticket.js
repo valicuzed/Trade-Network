@@ -7,6 +7,7 @@ import {
   ButtonStyle,
   PermissionFlagsBits,
   AttachmentBuilder,
+  EmbedBuilder,
 } from 'discord.js';
 import { buildStandardLogEmbed, formatLogLine } from '../utils/logEmbeds.js';
 import { getGuildConfig } from './guildConfig.js';
@@ -210,7 +211,35 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     });
 
     await ticketMessage.pin().catch(() => {});
-    
+
+    const staffRoleMentions = [
+      config.ticketStaffRoleId ? `<@&${config.ticketStaffRoleId}>` : null,
+      config.ticketStaffRoleId2 ? `<@&${config.ticketStaffRoleId2}>` : null,
+    ].filter(Boolean).join(' ');
+
+    const middlemanGuide = new EmbedBuilder()
+      .setTitle('📋 Middleman Commands')
+      .setColor(0x5865F2)
+      .setDescription('**This message is for middlemen only.**\nUse the following commands at the right stage of the trade:')
+      .addFields(
+        {
+          name: '`!deconf` — Deposit Confirmation',
+          value: 'Type this once **both traders have handed their items** to you (the middleman). A confirmation will be posted in `#deposit-confirmations`.',
+          inline: false,
+        },
+        {
+          name: '`!relconf` — Release Confirmation',
+          value: 'Type this once you have **released the items to the correct traders** and the trade is complete. A confirmation will be posted in `#release-confirmation`.',
+          inline: false,
+        },
+      )
+      .setFooter({ text: 'Only middlemen can trigger these commands.' });
+
+    await channel.send({
+      content: staffRoleMentions || undefined,
+      embeds: [middlemanGuide],
+    });
+
     await logTicketEvent({
       client: guild.client,
       guildId: guild.id,
