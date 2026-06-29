@@ -1,6 +1,7 @@
 import {
   createTicketModalHandler,
   closeTicketModalHandler,
+  closeMMModalHandler,
 } from '../../handlers/ticketButtons.js';
 
-export default [createTicketModalHandler, closeTicketModalHandler];
+export default [createTicketModalHandler, closeTicketModalHandler, closeMMModalHandler];

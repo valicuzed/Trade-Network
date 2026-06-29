@@ -338,6 +338,24 @@ const closeTicketHandler = {
         return;
       }
 
+      const isMMApplication = permissionCheck.context?.ticketData?.reason === 'Middleman Application';
+
+      if (isMMApplication) {
+        const mmModal = new ModalBuilder()
+          .setCustomId('ticket_close_mm_modal')
+          .setTitle('Close Application');
+        const decisionInput = new TextInputBuilder()
+          .setCustomId('decision')
+          .setLabel("Type 'Accept' or 'Denied' to close")
+          .setStyle(TextInputStyle.Short)
+          .setPlaceholder('Accept  /  Denied')
+          .setRequired(true)
+          .setMaxLength(10);
+        mmModal.addComponents(new ActionRowBuilder().addComponents(decisionInput));
+        await interaction.showModal(mmModal);
+        return;
+      }
+
       const modal = new ModalBuilder()
         .setCustomId('ticket_close_modal')
         .setTitle('Close Ticket');
@@ -412,6 +430,87 @@ const closeTicketModalHandler = {
         await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the ticket.' });
       } else if (interaction.deferred) {
         await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the ticket.' });
+      }
+    }
+  }
+};
+
+const closeMMModalHandler = {
+  name: 'ticket_close_mm_modal',
+  async execute(interaction, client) {
+    try {
+      if (!(await ensureGuildContext(interaction))) return;
+
+      const permissionCheck = await checkTicketPermissionWithTimeout(
+        interaction, client, 'close this application', { allowTicketCreator: false }, 2000
+      );
+      if (!permissionCheck.success) {
+        await replyPermissionCheckFailure(interaction, permissionCheck);
+        return;
+      }
+
+      const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
+      if (!deferSuccess) return;
+
+      const raw = interaction.fields.getTextInputValue('decision')?.trim().toLowerCase();
+      if (raw !== 'accept' && raw !== 'denied') {
+        await interaction.editReply({
+          embeds: [errorEmbed('Invalid Input', "You must type exactly **Accept** or **Denied**.")],
+        });
+        return;
+      }
+
+      const ticketData = permissionCheck.context?.ticketData;
+      const applicantId = ticketData?.userId;
+      const applicant = applicantId
+        ? await interaction.guild.members.fetch(applicantId).catch(() => null)
+        : null;
+
+      // Find the middleman assignments channel by name
+      const assignmentsChannel = interaction.guild.channels.cache.find(c =>
+        c.name.toLowerCase().replace(/[-_\s]/g, '').includes('middlemanassign') ||
+        c.name.toLowerCase().replace(/[-_\s]/g, '').includes('mmmassign') ||
+        c.name.toLowerCase().includes('assignments')
+      );
+
+      if (raw === 'accept') {
+        // Find the Middleman (Trial) role by name
+        const trialRole = interaction.guild.roles.cache.find(r =>
+          r.name.toLowerCase().includes('middleman') && r.name.toLowerCase().includes('trial')
+        );
+
+        if (applicant && trialRole) {
+          await applicant.roles.add(trialRole).catch(err =>
+            logger.warn(`Could not assign trial role to ${applicantId}: ${err.message}`)
+          );
+        }
+
+        if (assignmentsChannel) {
+          const userMention = applicant?.toString() ?? `<@${applicantId}>`;
+          const roleMention = trialRole?.toString() ?? '@Middleman (Trial)';
+          await assignmentsChannel.send(`${userMention} Has been PROMOTED to ${roleMention}!`);
+        }
+      } else {
+        if (assignmentsChannel) {
+          const userMention = applicant?.toString() ?? `<@${applicantId}>`;
+          await assignmentsChannel.send(`${userMention} Has been DENIED the Middleman (Trial) position.`);
+        }
+      }
+
+      const result = await closeTicket(interaction.channel, interaction.user, raw);
+      if (result.success) {
+        await interaction.editReply({
+          embeds: [successEmbed('Application Closed', `The application has been **${raw === 'accept' ? 'accepted' : 'denied'}**.`)],
+        });
+      } else {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to close application ticket.' });
+      }
+    } catch (error) {
+      logger.error('Error closing MM application modal:', error);
+      if (!interaction.replied && !interaction.deferred) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the application.' });
+      } else if (interaction.deferred) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the application.' });
       }
     }
   }
@@ -757,6 +856,7 @@ export default createTicketHandler;
 export { 
   createTicketModalHandler, 
   closeTicketModalHandler,
+  closeMMModalHandler,
   closeTicketHandler, 
   claimTicketHandler, 
   priorityTicketHandler,
