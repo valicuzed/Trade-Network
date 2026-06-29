@@ -105,7 +105,7 @@ export default {
         // ── Auto-assign Trader role on join ───────────────────────────────
         try {
             const traderRole = guild.roles.cache.find(r =>
-                r.name.toLowerCase() === 'trader'
+                r.name.toLowerCase().includes('trader')
             );
             if (traderRole) {
                 await assignRoleSafely(member, traderRole);
