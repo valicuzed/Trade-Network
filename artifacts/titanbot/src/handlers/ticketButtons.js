@@ -358,7 +358,9 @@ const closeTicketHandler = {
         return;
       }
 
-      const isMMApplication = permissionCheck.context?.ticketData?.reason === 'Middleman Application';
+      const ticketReason = permissionCheck.context?.ticketData?.reason ?? '';
+      const isMMApplication = ticketReason === 'Middleman Application';
+      const isDisputeTicket = ticketReason === 'Dispute Ticket';
 
       if (isMMApplication) {
         const mmModal = new ModalBuilder()
@@ -373,6 +375,22 @@ const closeTicketHandler = {
           .setMaxLength(10);
         mmModal.addComponents(new ActionRowBuilder().addComponents(decisionInput));
         await interaction.showModal(mmModal);
+        return;
+      }
+
+      if (isDisputeTicket) {
+        const disputeModal = new ModalBuilder()
+          .setCustomId('ticket_close_dispute_modal')
+          .setTitle('Close Dispute');
+        const reasonInput = new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('Reason for closing')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Briefly describe how this dispute was resolved...')
+          .setRequired(true)
+          .setMaxLength(500);
+        disputeModal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+        await interaction.showModal(disputeModal);
         return;
       }
 
@@ -494,6 +512,44 @@ const closeTicketModalHandler = {
         await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the ticket.' });
       } else if (interaction.deferred) {
         await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the ticket.' });
+      }
+    }
+  }
+};
+
+const closeDisputeModalHandler = {
+  name: 'ticket_close_dispute_modal',
+  async execute(interaction, client) {
+    try {
+      if (!(await ensureGuildContext(interaction))) return;
+
+      const permissionCheck = await checkTicketPermissionWithTimeout(
+        interaction, client, 'close this dispute', { allowTicketCreator: false }, 2000
+      );
+      if (!permissionCheck.success) {
+        await replyPermissionCheckFailure(interaction, permissionCheck);
+        return;
+      }
+
+      const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
+      if (!deferSuccess) return;
+
+      const reason = interaction.fields.getTextInputValue('reason')?.trim() || 'Dispute resolved';
+      const result = await closeTicket(interaction.channel, interaction.user, reason);
+
+      if (result.success) {
+        await interaction.editReply({
+          embeds: [successEmbed('Dispute Closed', 'The dispute ticket has been closed.')],
+        });
+      } else {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to close dispute ticket.' });
+      }
+    } catch (error) {
+      logger.error('Error closing dispute modal:', error);
+      if (!interaction.replied && !interaction.deferred) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the dispute.' });
+      } else if (interaction.deferred) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the dispute.' });
       }
     }
   }
@@ -920,6 +976,7 @@ export default createTicketHandler;
 export { 
   createTicketModalHandler, 
   closeTicketModalHandler,
+  closeDisputeModalHandler,
   closeMMModalHandler,
   closeTicketHandler, 
   claimTicketHandler, 
