@@ -59,30 +59,14 @@ function panelButtonCustomId(systemId) {
 
 // ── component builders ────────────────────────────────────────────────────────
 
-function buildButtonRow(systemConfig, guildId, disabled = false, panelStatus = null, systemId = 'default') {
+// Returns [row1, row2] — spread into components array
+function buildButtonRows(systemConfig, guildId, disabled = false, panelStatus = null, systemId = 'default') {
     const sid = systemId || 'default';
     const dmEnabled = systemConfig.dmOnClose !== false;
     const showRepost = panelStatus?.exists === false && panelStatus?.reason === 'panel_deleted';
-    const buttons = [];
 
-    if (showRepost) {
-        buttons.push(
-            new ButtonBuilder()
-                .setCustomId(`ticket_cfg_repost_${guildId}_${sid}`)
-                .setLabel('Repost Panel')
-                .setStyle(ButtonStyle.Primary)
-                .setEmoji('📌')
-                .setDisabled(disabled),
-        );
-    }
-
-    buttons.push(
-        new ButtonBuilder()
-            .setCustomId(`ticket_cfg_dm_toggle_${guildId}_${sid}`)
-            .setLabel('DM on Close')
-            .setStyle(dmEnabled ? ButtonStyle.Success : ButtonStyle.Danger)
-            .setEmoji(dmEnabled ? '📬' : '📭')
-            .setDisabled(disabled),
+    // Row 1: Staff roles (1–3) + DM toggle
+    const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`ticket_cfg_staff_role_btn_${guildId}_${sid}`)
             .setLabel('Staff Role 1')
@@ -96,14 +80,42 @@ function buildButtonRow(systemConfig, guildId, disabled = false, panelStatus = n
             .setEmoji('🛡️')
             .setDisabled(disabled),
         new ButtonBuilder()
+            .setCustomId(`ticket_cfg_staff_role3_btn_${guildId}_${sid}`)
+            .setLabel('Staff Role 3')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🛡️')
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`ticket_cfg_dm_toggle_${guildId}_${sid}`)
+            .setLabel('DM on Close')
+            .setStyle(dmEnabled ? ButtonStyle.Success : ButtonStyle.Danger)
+            .setEmoji(dmEnabled ? '📬' : '📭')
+            .setDisabled(disabled),
+    );
+
+    // Row 2: Repost (conditional) + Delete
+    const row2Buttons = [];
+    if (showRepost) {
+        row2Buttons.push(
+            new ButtonBuilder()
+                .setCustomId(`ticket_cfg_repost_${guildId}_${sid}`)
+                .setLabel('Repost Panel')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('📌')
+                .setDisabled(disabled),
+        );
+    }
+    row2Buttons.push(
+        new ButtonBuilder()
             .setCustomId(`ticket_cfg_delete_${guildId}_${sid}`)
             .setLabel('Delete System')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('🗑️')
             .setDisabled(disabled),
     );
+    const row2 = new ActionRowBuilder().addComponents(row2Buttons);
 
-    return new ActionRowBuilder().addComponents(buttons);
+    return [row1, row2];
 }
 
 async function persistPanelMessageId(client, guildId, rootConfig, messageId, systemId = 'default') {
@@ -164,6 +176,7 @@ function buildDashboardEmbed(config, guild, panelStatus = null, ticketStats = nu
     const panelChannel = config.ticketPanelChannelId ? `<#${config.ticketPanelChannelId}>` : '`Not set`';
     const staffRole = config.ticketStaffRoleId ? `<@&${config.ticketStaffRoleId}>` : '`Not set`';
     const staffRole2 = config.ticketStaffRoleId2 ? `<@&${config.ticketStaffRoleId2}>` : '`Not set`';
+    const staffRole3 = config.ticketStaffRoleId3 ? `<@&${config.ticketStaffRoleId3}>` : '`Not set`';
     const ticketLogsChannel = config.ticketLogsChannelId ? `<#${config.ticketLogsChannelId}>` : '`Not set`';
     const transcriptChannel = config.ticketTranscriptChannelId ? `<#${config.ticketTranscriptChannelId}>` : '`Not set`';
 
@@ -198,6 +211,7 @@ function buildDashboardEmbed(config, guild, panelStatus = null, ticketStats = nu
             { name: 'Panel Channel', value: panelChannel, inline: true },
             { name: 'Staff Role 1', value: staffRole, inline: true },
             { name: 'Staff Role 2', value: staffRole2, inline: true },
+            { name: 'Staff Role 3', value: staffRole3, inline: true },
             { name: '\u200B', value: '\u200B', inline: true },
             { name: 'Open Tickets Category', value: openCategory, inline: true },
             { name: 'Closed Tickets Category', value: closedCategory, inline: true },
@@ -288,11 +302,11 @@ async function refreshDashboard(rootInteraction, systemConfig, guildId, client, 
     }
 
     const systemName = systemConfig.ticketSystemName || (sid === 'default' ? 'Default' : sid);
-    const buttonRow = buildButtonRow(systemConfig, guildId, false, panelStatus, sid);
+    const buttonRows = buildButtonRows(systemConfig, guildId, false, panelStatus, sid);
     const selectRow = new ActionRowBuilder().addComponents(buildSelectMenu(guildId, sid));
     await InteractionHelper.safeEditReply(rootInteraction, {
         embeds: [buildDashboardEmbed(systemConfig, rootInteraction.guild, panelStatus, ticketStats, sid, systemName)],
-        components: [buttonRow, selectRow],
+        components: [...buttonRows, selectRow],
     }).catch(() => {});
 }
 
@@ -424,18 +438,19 @@ async function openSystemDashboard(interaction, rootConfig, systemId, client) {
 
     const ticketStats = await getGuildTicketStats(guildId);
     const selectRow = new ActionRowBuilder().addComponents(buildSelectMenu(guildId, sid));
-    const buttonRow = buildButtonRow(systemConfig, guildId, false, panelStatus, sid);
+    const buttonRows = buildButtonRows(systemConfig, guildId, false, panelStatus, sid);
 
     await startDashboardSession({
         interaction,
         embeds: [buildDashboardEmbed(systemConfig, interaction.guild, panelStatus, ticketStats, sid, systemName)],
-        components: [buttonRow, selectRow],
+        components: [...buttonRows, selectRow],
         selectMenuId: `ticket_config_${guildId}_${sid}`,
         buttonMatcher: (customId) =>
             customId === `ticket_cfg_repost_${guildId}_${sid}` ||
             customId === `ticket_cfg_dm_toggle_${guildId}_${sid}` ||
             customId === `ticket_cfg_staff_role_btn_${guildId}_${sid}` ||
             customId === `ticket_cfg_staff_role2_btn_${guildId}_${sid}` ||
+            customId === `ticket_cfg_staff_role3_btn_${guildId}_${sid}` ||
             customId === `ticket_cfg_delete_${guildId}_${sid}`,
         onSelect: async (selectInteraction) => {
             const selectedOption = selectInteraction.values[0];
@@ -475,6 +490,8 @@ async function openSystemDashboard(interaction, rootConfig, systemId, client) {
                 await handleStaffRole(btnInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
             } else if (btnInteraction.customId === `ticket_cfg_staff_role2_btn_${guildId}_${sid}`) {
                 await handleStaffRole2(btnInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
+            } else if (btnInteraction.customId === `ticket_cfg_staff_role3_btn_${guildId}_${sid}`) {
+                await handleStaffRole3(btnInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
             } else if (btnInteraction.customId === `ticket_cfg_delete_${guildId}_${sid}`) {
                 await handleDeleteSystem(btnInteraction, interaction, systemConfig, guildId, client, rootConfig, sid);
             }
@@ -699,6 +716,61 @@ async function handleStaffRole2(selectInteraction, rootInteraction, systemConfig
             replyUserError(selectInteraction, {
                 type: ErrorTypes.RATE_LIMIT,
                 message: 'No role was selected. The second staff role was not changed.',
+            }).catch(() => {});
+        }
+    });
+}
+
+async function handleStaffRole3(selectInteraction, rootInteraction, systemConfig, guildId, client, rootConfig, systemId) {
+    await selectInteraction.deferUpdate();
+
+    const roleSelect = new RoleSelectMenuBuilder()
+        .setCustomId('ticket_cfg_staff_role3')
+        .setPlaceholder('Select the third staff role...')
+        .setMaxValues(1);
+
+    const row = new ActionRowBuilder().addComponents(roleSelect);
+
+    await selectInteraction.followUp({
+        embeds: [
+            new EmbedBuilder()
+                .setTitle('🛡️ Change Staff Role 3')
+                .setDescription(
+                    `**Current:** ${systemConfig.ticketStaffRoleId3 ? `<@&${systemConfig.ticketStaffRoleId3}>` : '`Not set`'}\n\nSelect the third role that should be pinged and have access to tickets.`,
+                )
+                .setColor(getColor('info')),
+        ],
+        components: [row],
+        flags: MessageFlags.Ephemeral,
+    });
+
+    const roleCollector = rootInteraction.channel.createMessageComponentCollector({
+        componentType: ComponentType.RoleSelect,
+        filter: i => i.user.id === selectInteraction.user.id && i.customId === 'ticket_cfg_staff_role3',
+        time: 60_000,
+        max: 1,
+    });
+
+    roleCollector.on('collect', async roleInteraction => {
+        await roleInteraction.deferUpdate();
+        const role = roleInteraction.roles.first();
+
+        systemConfig.ticketStaffRoleId3 = role.id;
+        await client.db.set(getGuildConfigKey(guildId), rootConfig);
+
+        await roleInteraction.followUp({
+            embeds: [successEmbed('Staff Role 3 Updated', `Third staff role set to ${role}.`)],
+            flags: MessageFlags.Ephemeral,
+        });
+
+        await refreshDashboard(rootInteraction, systemConfig, guildId, client, rootConfig, systemId);
+    });
+
+    roleCollector.on('end', (collected, reason) => {
+        if (reason === 'time' && collected.size === 0) {
+            replyUserError(selectInteraction, {
+                type: ErrorTypes.RATE_LIMIT,
+                message: 'No role was selected. The third staff role was not changed.',
             }).catch(() => {});
         }
     });
@@ -1242,9 +1314,9 @@ async function handleDeleteSystem(btnInteraction, rootInteraction, systemConfig,
     // Remove from config
     if (!systemId || systemId === 'default') {
         const keysToDelete = [
-            'ticketPanelChannelId', 'ticketPanelMessageId', 'ticketStaffRoleId', 'ticketStaffRoleId2',
+            'ticketPanelChannelId', 'ticketPanelMessageId', 'ticketStaffRoleId', 'ticketStaffRoleId2', 'ticketStaffRoleId3',
             'ticketCategoryId', 'ticketClosedCategoryId', 'ticketPanelMessage', 'ticketButtonLabel',
-            'maxTicketsPerUser', 'dmOnClose', 'ticketSystemName',
+            'maxTicketsPerUser', 'dmOnClose', 'ticketSystemName', 'minMembershipDays', 'minSuccessfulTrades',
         ];
         for (const key of keysToDelete) delete rootConfig[key];
     } else {

@@ -146,6 +146,15 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
             PermissionFlagsBits.ReadMessageHistory,
           ],
         }] : []),
+        ...(effectiveConfig.ticketStaffRoleId3 ? [{
+          id: effectiveConfig.ticketStaffRoleId3,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ReadMessageHistory,
+          ],
+        }] : []),
         ...(extraUserId && extraUserId !== member.id ? [{
           id: extraUserId,
           allow: [
@@ -203,8 +212,9 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     
     const staffMention1 = effectiveConfig.ticketStaffRoleId ? ` <@&${effectiveConfig.ticketStaffRoleId}>` : '';
     const staffMention2 = effectiveConfig.ticketStaffRoleId2 ? ` <@&${effectiveConfig.ticketStaffRoleId2}>` : '';
+    const staffMention3 = effectiveConfig.ticketStaffRoleId3 ? ` <@&${effectiveConfig.ticketStaffRoleId3}>` : '';
     const extraUserMention = (extraUserId && extraUserId !== member.id) ? ` <@${extraUserId}>` : '';
-    const messageContent = `${member.toString()}${extraUserMention}${staffMention1}${staffMention2}`;
+    const messageContent = `${member.toString()}${extraUserMention}${staffMention1}${staffMention2}${staffMention3}`;
     
     const ticketMessage = await channel.send({ 
       content: messageContent,
@@ -217,6 +227,7 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     const staffRoleMentions = [
       effectiveConfig.ticketStaffRoleId ? `<@&${effectiveConfig.ticketStaffRoleId}>` : null,
       effectiveConfig.ticketStaffRoleId2 ? `<@&${effectiveConfig.ticketStaffRoleId2}>` : null,
+      effectiveConfig.ticketStaffRoleId3 ? `<@&${effectiveConfig.ticketStaffRoleId3}>` : null,
     ].filter(Boolean).join(' ');
 
     const middlemanGuide = new EmbedBuilder()
@@ -515,7 +526,7 @@ export async function claimTicket(channel, claimer) {
     // Remove the staff roles' view access so unclaimed middlemen can no longer see this ticket.
     // The claimer gets an explicit allow so they keep access.
     const claimConfig = await getGuildConfig(channel.client, channel.guild.id);
-    const staffRoleIds = [claimConfig.ticketStaffRoleId, claimConfig.ticketStaffRoleId2].filter(Boolean);
+    const staffRoleIds = [claimConfig.ticketStaffRoleId, claimConfig.ticketStaffRoleId2, claimConfig.ticketStaffRoleId3].filter(Boolean);
     for (const roleId of staffRoleIds) {
       await channel.permissionOverwrites.edit(roleId, { ViewChannel: false }).catch(() => {});
     }

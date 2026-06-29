@@ -71,6 +71,18 @@ export default {
                         )
                         .setRequired(false),
                 )
+                .addRoleOption((option) =>
+                    option
+                        .setName("staff_role_2")
+                        .setDescription("Second staff role (optional).")
+                        .setRequired(false),
+                )
+                .addRoleOption((option) =>
+                    option
+                        .setName("staff_role_3")
+                        .setDescription("Third staff role (optional).")
+                        .setRequired(false),
+                )
                 .addIntegerOption((option) =>
                     option
                         .setName("max_tickets_per_user")
@@ -203,6 +215,8 @@ export default {
             const categoryChannel = interaction.options.getChannel("category");
             const closedCategoryChannel = interaction.options.getChannel("closed_category");
             const staffRole = interaction.options.getRole("staff_role");
+            const staffRole2 = interaction.options.getRole("staff_role_2");
+            const staffRole3 = interaction.options.getRole("staff_role_3");
             const panelMessage = interaction.options.getString("panel_message") || "Click the button below to create a support ticket.";
             const buttonLabel = interaction.options.getString("button_label") || "Create Ticket";
             const maxTicketsPerUser = interaction.options.getInteger("max_tickets_per_user") || 3;
@@ -236,6 +250,8 @@ export default {
                         ticketCategoryId: categoryChannel?.id || null,
                         ticketClosedCategoryId: closedCategoryChannel?.id || null,
                         ticketStaffRoleId: staffRole?.id || null,
+                        ticketStaffRoleId2: staffRole2?.id || null,
+                        ticketStaffRoleId3: staffRole3?.id || null,
                         ticketPanelChannelId: panelChannel.id,
                         ticketPanelMessageId: sentPanel?.id || null,
                         ticketPanelMessage: panelMessage,
