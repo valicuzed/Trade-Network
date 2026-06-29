@@ -259,7 +259,7 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
       )
       .setFooter({ text: 'Only middlemen can trigger these commands.' });
 
-    if (reason !== 'Middleman Application') {
+    if (reason !== 'Middleman Application' && reason !== 'Dispute Ticket') {
       await channel.send({
         content: staffRoleMentions || undefined,
         embeds: [middlemanGuide],

@@ -172,38 +172,58 @@ const createTicketHandler = {
       // ──────────────────────────────────────────────────────────────────────
 
       // ── Middleman Application: skip modal, open ticket immediately ─────────
-      const isMiddlemanSystem = effectiveConfig.ticketSystemName?.toLowerCase().includes('middleman');
+      const systemName = effectiveConfig.ticketSystemName?.toLowerCase() ?? '';
+      const isMiddlemanSystem = systemName.includes('middleman');
+      const isDisputeSystem = systemName.includes('dispute');
+      const isNoModalSystem = isMiddlemanSystem || isDisputeSystem;
 
-      if (isMiddlemanSystem) {
+      if (isNoModalSystem) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const categoryId = effectiveConfig.ticketCategoryId || null;
+        const ticketReason = isDisputeSystem ? 'Dispute Ticket' : 'Middleman Application';
+
         const result = await createTicket(
           interaction.guild,
           interaction.member,
           categoryId,
-          'Middleman Application',
+          ticketReason,
           'none',
           null,
           systemConfig
         );
 
         if (result.success) {
-          await result.channel.send({
-            content: [
-              '* Discord username:',
-              '* Timezone:',
-              '* How active are you per day?',
-              '* Have you ever been a middleman or done safe trading before? (yes/no + short explanation)',
-              '* In simple words, what does a middleman do?',
-              '* What would you do if someone tries to rush you or bypass the system?',
-              '* Two players disagree during a trade. What do you do?',
-            ].join('\n'),
-          });
-          await interaction.editReply({
-            embeds: [successEmbed('Application Opened', `Your application ticket has been created in ${result.channel}!`)],
-          });
+          if (isDisputeSystem) {
+            await result.channel.send({
+              content: [
+                '### Please state:',
+                '* The other user\'s username',
+                '* What was agreed in the trade',
+                '* What went wrong',
+                '* Any proof (screenshots, messages, etc.)',
+              ].join('\n'),
+            });
+            await interaction.editReply({
+              embeds: [successEmbed('Dispute Opened', `Your dispute ticket has been created in ${result.channel}!`)],
+            });
+          } else {
+            await result.channel.send({
+              content: [
+                '* Discord username:',
+                '* Timezone:',
+                '* How active are you per day?',
+                '* Have you ever been a middleman or done safe trading before? (yes/no + short explanation)',
+                '* In simple words, what does a middleman do?',
+                '* What would you do if someone tries to rush you or bypass the system?',
+                '* Two players disagree during a trade. What do you do?',
+              ].join('\n'),
+            });
+            await interaction.editReply({
+              embeds: [successEmbed('Application Opened', `Your application ticket has been created in ${result.channel}!`)],
+            });
+          }
         } else {
-          await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to create application ticket.' });
+          await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to create ticket.' });
         }
         return;
       }
