@@ -414,6 +414,7 @@ const closeTicketModalHandler = {
       }
       const reason = providedReason;
 
+      const claimerId = permissionCheck.context?.ticketData?.claimedBy ?? null;
       const result = await closeTicket(interaction.channel, interaction.user, reason);
 
       if (result.success) {
@@ -421,6 +422,49 @@ const closeTicketModalHandler = {
           embeds: [successEmbed('Ticket Closed', 'This ticket has been closed.')],
           flags: MessageFlags.Ephemeral
         });
+
+        // ── Trial middleman auto-promotion check ───────────────────────────
+        if (reason === 'success' && claimerId) {
+          try {
+            const claimer = await interaction.guild.members.fetch(claimerId).catch(() => null);
+            const trialRole = interaction.guild.roles.cache.find(r =>
+              r.name.toLowerCase().includes('middleman') && r.name.toLowerCase().includes('trial')
+            );
+
+            if (claimer && trialRole && claimer.roles.cache.has(trialRole.id)) {
+              const { getSuccessfulTradesAsClaimer } = await import('../utils/database/tickets.js');
+              const tradeCount = await getSuccessfulTradesAsClaimer(interaction.guildId, claimerId);
+
+              if (tradeCount >= 5) {
+                const verifiedRole = interaction.guild.roles.cache.find(r =>
+                  r.name.toLowerCase().includes('verified') && r.name.toLowerCase().includes('middleman')
+                );
+
+                if (verifiedRole) {
+                  await claimer.roles.add(verifiedRole).catch(err =>
+                    logger.warn(`Could not assign Verified Middleman role to ${claimerId}: ${err.message}`)
+                  );
+                  await claimer.roles.remove(trialRole).catch(() => {});
+                }
+
+                const assignmentsChannel = interaction.guild.channels.cache.find(c =>
+                  c.name.toLowerCase().replace(/[-_\s]/g, '').includes('middlemanassign') ||
+                  c.name.toLowerCase().includes('assignments')
+                );
+
+                if (assignmentsChannel) {
+                  const roleMention = verifiedRole?.toString() ?? '@Verified Middleman';
+                  await assignmentsChannel.send(
+                    `${claimer.toString()} Has been PROMOTED to ${roleMention}!`
+                  );
+                }
+              }
+            }
+          } catch (promoErr) {
+            logger.warn(`Trial middleman promotion check failed: ${promoErr.message}`);
+          }
+        }
+        // ──────────────────────────────────────────────────────────────────
       } else {
         await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to close ticket.' });
       }
