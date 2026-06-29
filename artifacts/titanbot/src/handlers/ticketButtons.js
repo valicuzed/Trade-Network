@@ -171,6 +171,44 @@ const createTicketHandler = {
       }
       // ──────────────────────────────────────────────────────────────────────
 
+      // ── Middleman Application: skip modal, open ticket immediately ─────────
+      const isMiddlemanSystem = effectiveConfig.ticketSystemName?.toLowerCase().includes('middleman');
+
+      if (isMiddlemanSystem) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const categoryId = effectiveConfig.ticketCategoryId || null;
+        const result = await createTicket(
+          interaction.guild,
+          interaction.member,
+          categoryId,
+          'Middleman Application',
+          'none',
+          null,
+          systemConfig
+        );
+
+        if (result.success) {
+          await result.channel.send({
+            content: [
+              '* Discord username:',
+              '* Timezone:',
+              '* How active are you per day?',
+              '* Have you ever been a middleman or done safe trading before? (yes/no + short explanation)',
+              '* In simple words, what does a middleman do?',
+              '* What would you do if someone tries to rush you or bypass the system?',
+              '* Two players disagree during a trade. What do you do?',
+            ].join('\n'),
+          });
+          await interaction.editReply({
+            embeds: [successEmbed('Application Opened', `Your application ticket has been created in ${result.channel}!`)],
+          });
+        } else {
+          await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to create application ticket.' });
+        }
+        return;
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       const modalCustomId = systemId ? `create_ticket_modal:${systemId}` : 'create_ticket_modal';
       const modal = new ModalBuilder()
         .setCustomId(modalCustomId)
