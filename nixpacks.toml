@@ -1,0 +1,5 @@
+[phases.install]
+cmds = ["pnpm install --no-frozen-lockfile"]
+
+[start]
+cmd = "node artifacts/titanbot/src/app.js"
