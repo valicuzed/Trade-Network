@@ -67,6 +67,12 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     const config = await getGuildConfig(guild.client, guild.id);
     // Merge system-specific config over global config (same field names, system wins)
     const effectiveConfig = systemConfig ? { ...config, ...systemConfig } : config;
+    // Named systems must not inherit global staff roles — only use roles explicitly set on that system
+    if (systemConfig) {
+      if (!Object.prototype.hasOwnProperty.call(systemConfig, 'ticketStaffRoleId')) effectiveConfig.ticketStaffRoleId = null;
+      if (!Object.prototype.hasOwnProperty.call(systemConfig, 'ticketStaffRoleId2')) effectiveConfig.ticketStaffRoleId2 = null;
+      if (!Object.prototype.hasOwnProperty.call(systemConfig, 'ticketStaffRoleId3')) effectiveConfig.ticketStaffRoleId3 = null;
+    }
     const ticketConfig = effectiveConfig.tickets || {};
     
     const maxTicketsPerUser = effectiveConfig.maxTicketsPerUser ?? 3;
@@ -253,10 +259,12 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
       )
       .setFooter({ text: 'Only middlemen can trigger these commands.' });
 
-    await channel.send({
-      content: staffRoleMentions || undefined,
-      embeds: [middlemanGuide],
-    });
+    if (reason !== 'Middleman Application') {
+      await channel.send({
+        content: staffRoleMentions || undefined,
+        embeds: [middlemanGuide],
+      });
+    }
 
     await logTicketEvent({
       client: guild.client,
