@@ -62,12 +62,14 @@ export async function getUserTicketCount(guildId, userId) {
   }
 }
 
-export async function createTicket(guild, member, categoryId, reason = 'No reason provided', priority = 'none', extraUserId = null) {
+export async function createTicket(guild, member, categoryId, reason = 'No reason provided', priority = 'none', extraUserId = null, systemConfig = null) {
   try {
     const config = await getGuildConfig(guild.client, guild.id);
-    const ticketConfig = config.tickets || {};
+    // Merge system-specific config over global config (same field names, system wins)
+    const effectiveConfig = systemConfig ? { ...config, ...systemConfig } : config;
+    const ticketConfig = effectiveConfig.tickets || {};
     
-    const maxTicketsPerUser = config.maxTicketsPerUser ?? 3;
+    const maxTicketsPerUser = effectiveConfig.maxTicketsPerUser ?? 3;
     const currentTicketCount = await getUserTicketCount(guild.id, member.id);
     
     if (currentTicketCount >= maxTicketsPerUser) {
@@ -126,8 +128,8 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
             PermissionFlagsBits.ReadMessageHistory,
           ],
         },
-        ...(config.ticketStaffRoleId ? [{
-          id: config.ticketStaffRoleId,
+        ...(effectiveConfig.ticketStaffRoleId ? [{
+          id: effectiveConfig.ticketStaffRoleId,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -135,8 +137,8 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
             PermissionFlagsBits.ReadMessageHistory,
           ],
         }] : []),
-        ...(config.ticketStaffRoleId2 ? [{
-          id: config.ticketStaffRoleId2,
+        ...(effectiveConfig.ticketStaffRoleId2 ? [{
+          id: effectiveConfig.ticketStaffRoleId2,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -199,8 +201,8 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
       );
     }
     
-    const staffMention1 = config.ticketStaffRoleId ? ` <@&${config.ticketStaffRoleId}>` : '';
-    const staffMention2 = config.ticketStaffRoleId2 ? ` <@&${config.ticketStaffRoleId2}>` : '';
+    const staffMention1 = effectiveConfig.ticketStaffRoleId ? ` <@&${effectiveConfig.ticketStaffRoleId}>` : '';
+    const staffMention2 = effectiveConfig.ticketStaffRoleId2 ? ` <@&${effectiveConfig.ticketStaffRoleId2}>` : '';
     const extraUserMention = (extraUserId && extraUserId !== member.id) ? ` <@${extraUserId}>` : '';
     const messageContent = `${member.toString()}${extraUserMention}${staffMention1}${staffMention2}`;
     
@@ -213,8 +215,8 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
     await ticketMessage.pin().catch(() => {});
 
     const staffRoleMentions = [
-      config.ticketStaffRoleId ? `<@&${config.ticketStaffRoleId}>` : null,
-      config.ticketStaffRoleId2 ? `<@&${config.ticketStaffRoleId2}>` : null,
+      effectiveConfig.ticketStaffRoleId ? `<@&${effectiveConfig.ticketStaffRoleId}>` : null,
+      effectiveConfig.ticketStaffRoleId2 ? `<@&${effectiveConfig.ticketStaffRoleId2}>` : null,
     ].filter(Boolean).join(' ');
 
     const middlemanGuide = new EmbedBuilder()

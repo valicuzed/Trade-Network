@@ -99,7 +99,7 @@ async function ensureTicketPermission(interaction, client, actionLabel, options 
 
 const createTicketHandler = {
   name: 'create_ticket',
-  async execute(interaction, client) {
+  async execute(interaction, client, args) {
     try {
       if (!(await ensureGuildContext(interaction))) return;
 
@@ -110,8 +110,14 @@ const createTicketHandler = {
         return;
       }
 
+      // args[0] is the systemId for named ticket systems (e.g. create_ticket:mm-app → args=['mm-app'])
+      const systemId = args?.[0] || null;
       const config = await getGuildConfig(client, interaction.guildId);
-      const maxTicketsPerUser = config.maxTicketsPerUser || 3;
+
+      // Resolve system-specific config (or fall back to flat config for the default system)
+      const systemConfig = systemId ? (config.ticketSystems?.[systemId] ?? null) : null;
+      const effectiveConfig = systemConfig ? { ...config, ...systemConfig } : config;
+      const maxTicketsPerUser = effectiveConfig.maxTicketsPerUser ?? 3;
       
       const { getUserTicketCount } = await import('../services/ticket.js');
       const currentTicketCount = await getUserTicketCount(interaction.guildId, interaction.user.id);
@@ -120,8 +126,9 @@ const createTicketHandler = {
         return await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: `You have reached the maximum number of open tickets (${maxTicketsPerUser}).\n\nPlease close your existing tickets before creating a new one.\n\n**Current Tickets:** ${currentTicketCount}/${maxTicketsPerUser}` });
       }
       
+      const modalCustomId = systemId ? `create_ticket_modal:${systemId}` : 'create_ticket_modal';
       const modal = new ModalBuilder()
-        .setCustomId('create_ticket_modal')
+        .setCustomId(modalCustomId)
         .setTitle('Create a Ticket');
 
       const gameInput = new TextInputBuilder()
@@ -165,19 +172,24 @@ const createTicketHandler = {
 
 const createTicketModalHandler = {
   name: 'create_ticket_modal',
-  async execute(interaction, client) {
+  async execute(interaction, client, args) {
     try {
       if (!(await ensureGuildContext(interaction))) return;
 
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
-      
+
+      // args[0] is the systemId when the modal customId is 'create_ticket_modal:SYSTEM_ID'
+      const systemId = args?.[0] || null;
+      const config = await getGuildConfig(client, interaction.guildId);
+      const systemConfig = systemId ? (config.ticketSystems?.[systemId] ?? null) : null;
+      const effectiveConfig = systemConfig ? { ...config, ...systemConfig } : config;
+      const categoryId = effectiveConfig.ticketCategoryId || null;
+
       const tradeGame = interaction.fields.getTextInputValue('trade_game');
       const tradeDesc = interaction.fields.getTextInputValue('reason');
       const otherTraderRaw = interaction.fields.getTextInputValue('other_trader')?.trim() || '';
       const reason = `**Game:** ${tradeGame}\n**Trade:** ${tradeDesc}`;
-      const config = await getGuildConfig(client, interaction.guildId);
-      const categoryId = config.ticketCategoryId || null;
 
       // Parse user mention (<@123>) or raw user ID
       let extraUserId = null;
@@ -203,7 +215,8 @@ const createTicketModalHandler = {
         categoryId,
         reason,
         'none',
-        extraUserId
+        extraUserId,
+        systemConfig
       );
       
       if (result.success) {
