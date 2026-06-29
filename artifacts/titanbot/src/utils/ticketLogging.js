@@ -19,28 +19,25 @@ export async function logTicketEvent({ client, guildId, event }) {
 
     const config = await getGuildConfig(client, guildId);
 
-    // For close events, check if this is a trade outcome (success/cancel).
-    // If so, post a clean trade result embed and skip all other lifecycle logs.
+    // For close events: log to the completed trades channel unless it's a scam ticket.
     if (event.type === 'close') {
-      const closeReason = (event.reason || '').trim().toLowerCase();
-      const isTradeOutcome = closeReason === 'success' || closeReason === 'cancel';
+      const tradeReason = (event.metadata?.tradeReason || '').trim();
+      const isScamTicket = tradeReason.startsWith('Scam Report');
+      if (isScamTicket) return; // Never log scam ticket closes to the trades log
 
-      if (isTradeOutcome) {
-        const logChannelId = config.ticketLogsChannelId || null;
-        if (!logChannelId) return;
+      const logChannelId = config.ticketLogsChannelId || null;
+      if (!logChannelId) return;
 
-        const logChannel = guild.channels.cache.get(logChannelId)
-          || await guild.channels.fetch(logChannelId).catch(() => null);
-        if (!logChannel) return;
+      const logChannel = guild.channels.cache.get(logChannelId)
+        || await guild.channels.fetch(logChannelId).catch(() => null);
+      if (!logChannel) return;
 
-        const permissions = logChannel.permissionsFor(guild.members.me);
-        if (!permissions.has(['SendMessages', 'EmbedLinks'])) return;
+      const permissions = logChannel.permissionsFor(guild.members.me);
+      if (!permissions.has(['SendMessages', 'EmbedLinks'])) return;
 
-        const embed = await createTradeOutcomeEmbed(guild, event, closeReason === 'success');
-        await logChannel.send({ embeds: [embed] });
-        logger.info(`Trade outcome logged (${closeReason}) in guild ${guildId}`);
-      }
-      // All other close reasons: skip logging to the public channel entirely.
+      const embed = await createTradeOutcomeEmbed(guild, event);
+      await logChannel.send({ embeds: [embed] });
+      logger.info(`Ticket close logged in guild ${guildId}`);
       return;
     }
 
@@ -92,19 +89,23 @@ function parseTradeReason(raw) {
   };
 }
 
-async function createTradeOutcomeEmbed(guild, event, isSuccess) {
+async function createTradeOutcomeEmbed(guild, event) {
   const { EmbedBuilder } = await import('discord.js');
   const { game, trade } = parseTradeReason(event.metadata?.tradeReason);
   const creatorMention = event.userId ? `<@${event.userId}>` : 'Unknown';
+  const closedByMention = event.executorId ? `<@${event.executorId}>` : 'Unknown';
+  const closeNote = (event.reason && event.reason !== 'Closed') ? event.reason : null;
 
   const embed = new EmbedBuilder()
-    .setTitle(isSuccess ? '✅ Trade Successful' : '❌ Trade Canceled')
-    .setColor(isSuccess ? 0x57F287 : 0xED4245)
+    .setTitle('🔒 Ticket Closed')
+    .setColor(0x5865F2)
     .setTimestamp();
 
   if (game) embed.addFields({ name: 'Game', value: game, inline: true });
   if (trade) embed.addFields({ name: 'Trade', value: trade, inline: false });
   embed.addFields({ name: 'Creator', value: creatorMention, inline: true });
+  embed.addFields({ name: 'Closed by', value: closedByMention, inline: true });
+  if (closeNote) embed.addFields({ name: 'Reason', value: closeNote, inline: false });
 
   return embed;
 }

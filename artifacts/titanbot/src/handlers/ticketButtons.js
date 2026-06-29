@@ -487,11 +487,11 @@ const closeTicketHandler = {
 
       const reasonInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel("Type 'success' or 'cancel' to close")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("success  /  cancel")
-        .setRequired(true)
-        .setMaxLength(10);
+        .setLabel('Reason for closing (optional)')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Briefly describe why this ticket is being closed...')
+        .setRequired(false)
+        .setMaxLength(500);
 
       const actionRow = new ActionRowBuilder().addComponents(reasonInput);
       modal.addComponents(actionRow);
@@ -529,18 +529,10 @@ const closeTicketModalHandler = {
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
 
-      const providedReason = interaction.fields.getTextInputValue('reason')?.trim().toLowerCase();
-      if (providedReason !== 'success' && providedReason !== 'cancel') {
-        await interaction.editReply({
-          embeds: [errorEmbed('Invalid Input', "You must type exactly **success** or **cancel** to close this ticket.")],
-          flags: MessageFlags.Ephemeral
-        });
-        return;
-      }
-      const reason = providedReason;
+      const reason = interaction.fields.getTextInputValue('reason')?.trim() || '';
 
       const claimerId = permissionCheck.context?.ticketData?.claimedBy ?? null;
-      const result = await closeTicket(interaction.channel, interaction.user, reason);
+      const result = await closeTicket(interaction.channel, interaction.user, reason || 'Closed');
 
       if (result.success) {
         await interaction.editReply({
@@ -549,7 +541,7 @@ const closeTicketModalHandler = {
         });
 
         // ── Trial middleman auto-promotion check ───────────────────────────
-        if (reason === 'success' && claimerId) {
+        if (claimerId) {
           try {
             const claimer = await interaction.guild.members.fetch(claimerId).catch(() => null);
             const trialRole = interaction.guild.roles.cache.find(r =>
