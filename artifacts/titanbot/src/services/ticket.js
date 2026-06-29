@@ -232,6 +232,11 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
           value: 'Type this once you have **released the items to the correct traders** and the trade is complete. A confirmation will be posted in `#release-confirmation`.',
           inline: false,
         },
+        {
+          name: '`!feerec` — Fee Received',
+          value: 'Type this once you have **received your middleman fee** for this trade. A confirmation will be posted in `#middleman-rewards`.',
+          inline: false,
+        },
       )
       .setFooter({ text: 'Only middlemen can trigger these commands.' });
 

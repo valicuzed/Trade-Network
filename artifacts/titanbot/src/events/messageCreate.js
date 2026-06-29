@@ -46,7 +46,7 @@ export default {
 
 async function handleTicketCommands(message, client) {
   const cmd = message.content.trim().toLowerCase();
-  if (cmd !== '!deconf' && cmd !== '!relconf') return false;
+  if (cmd !== '!deconf' && cmd !== '!relconf' && cmd !== '!feerec') return false;
 
   try {
     const guildConfig = await getGuildConfig(client, message.guild.id);
@@ -77,6 +77,33 @@ async function handleTicketCommands(message, client) {
 
     const ticketCreator = await message.guild.members.fetch(ticketData.userId).catch(() => null);
     const ticketNumber = ticketData.id ? `<#${message.channel.id}>` : message.channel.toString();
+
+    if (cmd === '!feerec') {
+      const targetChannel = message.guild.channels.cache.find(
+        c => c.name === 'middleman-rewards'
+      );
+      if (!targetChannel) {
+        const reply = await message.reply({ content: '❌ Could not find a channel named `middleman-rewards`.' });
+        setTimeout(() => reply.delete().catch(() => {}), 7000);
+        await message.delete().catch(() => {});
+        return true;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('💰 Fee Received')
+        .setColor(Colors.Yellow)
+        .setDescription(
+          `A middleman fee has been received for a completed trade.\n\n` +
+          `**Ticket:** ${ticketNumber}\n` +
+          `**Trader:** ${ticketCreator ? ticketCreator.toString() : `<@${ticketData.userId}>`}\n` +
+          `**Middleman:** ${member.toString()}`
+        )
+        .setTimestamp();
+
+      await targetChannel.send({ embeds: [embed] });
+      await message.delete().catch(() => {});
+      return true;
+    }
 
     if (cmd === '!deconf') {
       const targetChannel = message.guild.channels.cache.find(
