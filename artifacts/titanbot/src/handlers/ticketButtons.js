@@ -565,6 +565,39 @@ const closeTicketModalHandler = {
           flags: MessageFlags.Ephemeral
         });
 
+        // ── Trade outcome log ──────────────────────────────────────────────
+        try {
+          const logChannel = interaction.guild.channels.cache.find(
+            c => c.name === 'completed-trades-log'
+          );
+          if (logChannel) {
+            const ticketData = permissionCheck.context?.ticketData;
+            const isSuccess = outcomeRaw === 'success';
+            const logEmbed = new EmbedBuilder()
+              .setTitle(isSuccess ? '✅ Trade Completed' : '❌ Trade Cancelled')
+              .setColor(isSuccess ? 0x57F287 : 0xED4245)
+              .addFields(
+                { name: 'Ticket', value: interaction.channel.toString(), inline: true },
+                { name: 'Outcome', value: isSuccess ? 'Success' : 'Cancelled', inline: true },
+                { name: 'Closed By', value: interaction.user.toString(), inline: true },
+              );
+            if (ticketData?.userId) {
+              logEmbed.addFields({ name: 'Trader', value: `<@${ticketData.userId}>`, inline: true });
+            }
+            if (claimerId) {
+              logEmbed.addFields({ name: 'Middleman', value: `<@${claimerId}>`, inline: true });
+            }
+            if (notes) {
+              logEmbed.addFields({ name: 'Notes', value: notes, inline: false });
+            }
+            logEmbed.setTimestamp();
+            await logChannel.send({ embeds: [logEmbed] });
+          }
+        } catch (logErr) {
+          logger.warn(`Could not send trade outcome log: ${logErr.message}`);
+        }
+        // ──────────────────────────────────────────────────────────────────
+
         // ── Trial middleman auto-promotion check ───────────────────────────
         if (claimerId) {
           try {

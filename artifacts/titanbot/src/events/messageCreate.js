@@ -132,10 +132,10 @@ async function handleTicketCommands(message, client) {
 
     } else if (cmd === '!relconf') {
       const targetChannel = message.guild.channels.cache.find(
-        c => c.name === 'release-confirmation'
+        c => c.name === 'release-confirmations'
       );
       if (!targetChannel) {
-        const reply = await message.reply({ content: '❌ Could not find a channel named `release-confirmation`.' });
+        const reply = await message.reply({ content: '❌ Could not find a channel named `release-confirmations`.' });
         setTimeout(() => reply.delete().catch(() => {}), 7000);
         await message.delete().catch(() => {});
         return true;
