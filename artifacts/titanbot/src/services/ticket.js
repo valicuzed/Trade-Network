@@ -253,7 +253,7 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
         },
         {
           name: '`!feerec` — Fee Received',
-          value: 'Type this once you have **received your middleman fee** for this trade. A confirmation will be posted in `#middleman-rewards`.',
+          value: 'Type this once you have **received your middleman fee** for this trade. A confirmation will be posted in `#fee-logs`.',
           inline: false,
         },
       )

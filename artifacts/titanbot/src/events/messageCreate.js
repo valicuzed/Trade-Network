@@ -80,10 +80,10 @@ async function handleTicketCommands(message, client) {
 
     if (cmd === '!feerec') {
       const targetChannel = message.guild.channels.cache.find(
-        c => c.name === 'middleman-rewards'
+        c => c.name === 'fee-logs'
       );
       if (!targetChannel) {
-        const reply = await message.reply({ content: '❌ Could not find a channel named `middleman-rewards`.' });
+        const reply = await message.reply({ content: '❌ Could not find a channel named `fee-logs`.' });
         setTimeout(() => reply.delete().catch(() => {}), 7000);
         await message.delete().catch(() => {});
         return true;
