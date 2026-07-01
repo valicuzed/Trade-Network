@@ -448,6 +448,7 @@ const closeTicketHandler = {
       const ticketReason = permissionCheck.context?.ticketData?.reason ?? '';
       const isMMApplication = ticketReason === 'Middleman Application';
       const isDisputeTicket = ticketReason === 'Dispute Ticket';
+      const isScamTicket = ticketReason.startsWith('Scam Report');
 
       if (isMMApplication) {
         const mmModal = new ModalBuilder()
@@ -478,6 +479,22 @@ const closeTicketHandler = {
           .setMaxLength(500);
         disputeModal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
         await interaction.showModal(disputeModal);
+        return;
+      }
+
+      if (isScamTicket) {
+        const scamCloseModal = new ModalBuilder()
+          .setCustomId('ticket_close_scam_modal')
+          .setTitle('Close Scam Report');
+        const reasonInput = new TextInputBuilder()
+          .setCustomId('reason')
+          .setLabel('Resolution notes (optional)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('Briefly describe the outcome of this report...')
+          .setRequired(false)
+          .setMaxLength(500);
+        scamCloseModal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+        await interaction.showModal(scamCloseModal);
         return;
       }
 
@@ -1076,11 +1093,54 @@ const deleteTicketHandler = {
   }
 };
 
+const closeScamTicketModalHandler = {
+  name: 'ticket_close_scam_modal',
+  async execute(interaction, client) {
+    try {
+      if (!(await ensureGuildContext(interaction))) return;
+
+      const permissionCheck = await checkTicketPermissionWithTimeout(
+        interaction,
+        client,
+        'close this ticket',
+        { allowTicketCreator: true },
+        2000
+      );
+
+      if (!permissionCheck.success) {
+        await replyPermissionCheckFailure(interaction, permissionCheck);
+        return;
+      }
+
+      const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
+      if (!deferSuccess) return;
+
+      const reason = interaction.fields.getTextInputValue('reason')?.trim() || '';
+      const result = await closeTicket(interaction.channel, interaction.user, reason || 'Closed');
+
+      if (result.success) {
+        await interaction.editReply({
+          embeds: [successEmbed('Report Closed', 'This scam report has been closed.')],
+          flags: MessageFlags.Ephemeral,
+        });
+      } else {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: result.error || 'Failed to close ticket.' });
+      }
+    } catch (error) {
+      logger.error('Error submitting scam close modal:', error);
+      if (!interaction.replied && !interaction.deferred) {
+        await replyUserError(interaction, { type: ErrorTypes.UNKNOWN, message: 'An error occurred while closing the report.' });
+      }
+    }
+  }
+};
+
 export default createTicketHandler;
 export { 
   createTicketModalHandler,
   createScamTicketModalHandler,
   closeTicketModalHandler,
+  closeScamTicketModalHandler,
   closeDisputeModalHandler,
   closeMMModalHandler,
   closeTicketHandler, 
