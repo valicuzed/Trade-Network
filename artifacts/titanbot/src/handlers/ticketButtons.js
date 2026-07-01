@@ -172,10 +172,11 @@ const createTicketHandler = {
       // ──────────────────────────────────────────────────────────────────────
 
       // ── Middleman Application: skip modal, open ticket immediately ─────────
-      const systemName = effectiveConfig.ticketSystemName?.toLowerCase() ?? '';
-      const isMiddlemanSystem = systemName.includes('middleman');
-      const isDisputeSystem = systemName.includes('dispute');
-      const isScamSystem = systemName.includes('scam');
+      const systemName = (effectiveConfig.ticketSystemName ?? '').toLowerCase();
+      const systemIdLower = (systemId ?? '').toLowerCase();
+      const isMiddlemanSystem = systemName.includes('middleman') || systemIdLower.includes('middleman');
+      const isDisputeSystem = systemName.includes('dispute') || systemIdLower.includes('dispute');
+      const isScamSystem = systemName.includes('scam') || systemIdLower.includes('scam');
       const isNoModalSystem = isMiddlemanSystem || isDisputeSystem;
 
       if (isScamSystem) {
@@ -227,7 +228,8 @@ const createTicketHandler = {
           if (isDisputeSystem) {
             await result.channel.send({
               content: [
-                '### Please state:',
+                '**Please state:**',
+                '* Your Discord username',
                 '* The other user\'s username',
                 '* What was agreed in the trade',
                 '* What went wrong',

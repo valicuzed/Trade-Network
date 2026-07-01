@@ -248,7 +248,7 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
         },
         {
           name: '`!relconf` — Release Confirmation',
-          value: 'Type this once you have **released the items to the correct traders** and the trade is complete. A confirmation will be posted in `#release-confirmation`.',
+          value: 'Type this once you have **released the items to the correct traders** and the trade is complete. A confirmation will be posted in `#release-confirmations`.',
           inline: false,
         },
         {
