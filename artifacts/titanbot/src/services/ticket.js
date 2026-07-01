@@ -426,23 +426,21 @@ export async function closeTicket(channel, closer, reason = 'No reason provided'
     
     if (ticketMessage) {
       const embed = ticketMessage.embeds[0];
-      const statusField = embed.fields?.find(f => f.name === 'Status');
-      
-      if (statusField) {
-        statusField.value = '🔴 Closed';
-      }
-      
+      const updatedFields = (embed.fields || []).map(f =>
+        f.name === 'Status' ? { ...f, value: '🔴 Closed' } : { name: f.name, value: f.value, inline: f.inline }
+      );
+
       const updatedEmbed = createEmbed({
         title: embed.title || 'Ticket',
         description: embed.description || 'Ticket discussion',
         color: '#e74c3c',
-        fields: embed.fields || [],
-        footer: embed.footer
+        fields: updatedFields,
+        footer: embed.footer ? { text: embed.footer.text } : undefined,
       });
-      
-      await ticketMessage.edit({ 
+
+      await ticketMessage.edit({
         embeds: [updatedEmbed],
-components: []
+        components: [],
       });
     }
     
@@ -698,17 +696,23 @@ export async function reopenTicket(channel, reopener) {
     
     if (ticketMessage) {
       const embed = ticketMessage.embeds[0];
-      const statusField = embed.fields?.find(f => f.name === 'Status');
-      
-      if (statusField) {
-        statusField.value = '🟢 Open';
-      }
-      
+      const updatedFields = (embed.fields || []).map(f =>
+        f.name === 'Status' ? { ...f, value: '🟢 Open' } : { name: f.name, value: f.value, inline: f.inline }
+      );
+
+      const updatedEmbed = createEmbed({
+        title: embed.title || 'Ticket',
+        description: embed.description || 'Ticket discussion',
+        color: '#2ecc71',
+        fields: updatedFields,
+        footer: embed.footer ? { text: embed.footer.text } : undefined,
+      });
+
       const row = buildTicketControlRow({ claimedBy: ticketData.claimedBy });
-      
-      await ticketMessage.edit({ 
-        embeds: [embed],
-        components: [row] 
+
+      await ticketMessage.edit({
+        embeds: [updatedEmbed],
+        components: [row],
       });
     }
     
