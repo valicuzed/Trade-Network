@@ -94,18 +94,30 @@ async function createTradeOutcomeEmbed(guild, event) {
   const { game, trade } = parseTradeReason(event.metadata?.tradeReason);
   const creatorMention = event.userId ? `<@${event.userId}>` : 'Unknown';
   const closedByMention = event.executorId ? `<@${event.executorId}>` : 'Unknown';
-  const closeNote = (event.reason && event.reason !== 'Closed') ? event.reason : null;
+  const rawReason = (event.reason || '').trim().toLowerCase();
+
+  const isSuccess = rawReason === 'success' || rawReason.startsWith('success —') || rawReason.startsWith('success -');
+  const isCancel = rawReason === 'cancel' || rawReason.startsWith('cancel —') || rawReason.startsWith('cancel -');
+
+  const title = isSuccess ? '✅ Trade Completed' : isCancel ? '❌ Trade Cancelled' : '🔒 Ticket Closed';
+  const color = isSuccess ? 0x57F287 : isCancel ? 0xED4245 : 0x5865F2;
+
+  // Strip "success — " / "cancel — " prefix from notes
+  let notes = event.reason || '';
+  if (isSuccess) notes = notes.replace(/^success\s*[—\-]\s*/i, '').trim();
+  else if (isCancel) notes = notes.replace(/^cancel\s*[—\-]\s*/i, '').trim();
+  else notes = notes !== 'Closed' ? notes : '';
 
   const embed = new EmbedBuilder()
-    .setTitle('🔒 Ticket Closed')
-    .setColor(0x5865F2)
+    .setTitle(title)
+    .setColor(color)
     .setTimestamp();
 
   if (game) embed.addFields({ name: 'Game', value: game, inline: true });
   if (trade) embed.addFields({ name: 'Trade', value: trade, inline: false });
   embed.addFields({ name: 'Creator', value: creatorMention, inline: true });
   embed.addFields({ name: 'Closed by', value: closedByMention, inline: true });
-  if (closeNote) embed.addFields({ name: 'Reason', value: closeNote, inline: false });
+  if (notes) embed.addFields({ name: 'Notes', value: notes, inline: false });
 
   return embed;
 }
