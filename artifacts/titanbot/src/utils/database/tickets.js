@@ -105,7 +105,7 @@ export async function getSuccessfulTradesAsClaimer(guildId, userId) {
                  WHERE guild_id = $1
                    AND data->>'claimedBy' = $2
                    AND data->>'status' = 'closed'
-                   AND data->>'closeReason' = 'success'`,
+                   AND (data->>'closeReason' = 'success' OR data->>'closeReason' LIKE 'success — %' OR data->>'closeReason' LIKE 'success - %')`,
                 [guildId, userId],
             );
             return Number(result.rows?.[0]?.count || 0);
@@ -121,7 +121,8 @@ export async function getSuccessfulTradesAsClaimer(guildId, userId) {
                     ticket &&
                     ticket.claimedBy === userId &&
                     ticket.status === 'closed' &&
-                    ticket.closeReason === 'success'
+                    typeof ticket.closeReason === 'string' &&
+                    ticket.closeReason.toLowerCase().startsWith('success')
                 ) {
                     count += 1;
                 }
