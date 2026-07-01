@@ -127,21 +127,9 @@ const createTicketHandler = {
       }
       
       // ── Eligibility checks (system-specific) ──────────────────────────────
-      const minMembershipDays = parseInt(effectiveConfig.minMembershipDays, 10) || 0;
-      const minSuccessfulTrades = parseInt(effectiveConfig.minSuccessfulTrades, 10) || 0;
+      const minMembershipDays = effectiveConfig.minMembershipDays || 0;
+      const minSuccessfulTrades = effectiveConfig.minSuccessfulTrades || 0;
       const isOwner = interaction.user.id === interaction.guild.ownerId;
-
-      logger.info('Eligibility check', {
-        guildId: interaction.guildId,
-        userId: interaction.user.id,
-        systemId,
-        minMembershipDays,
-        minSuccessfulTrades,
-        rawMinDays: effectiveConfig.minMembershipDays,
-        rawMinTrades: effectiveConfig.minSuccessfulTrades,
-        hasTicketSystems: !!config.ticketSystems,
-        systemKeys: config.ticketSystems ? Object.keys(config.ticketSystems) : [],
-      });
 
       if (!isOwner && (minMembershipDays > 0 || minSuccessfulTrades > 0)) {
         const failures = [];
@@ -497,26 +485,15 @@ const closeTicketHandler = {
         .setCustomId('ticket_close_modal')
         .setTitle('Close Ticket');
 
-      const outcomeInput = new TextInputBuilder()
-        .setCustomId('outcome')
-        .setLabel('Outcome (type: success / cancel)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('success  /  cancel')
-        .setRequired(true)
-        .setMaxLength(10);
-
       const reasonInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel('Reason / notes (optional)')
+        .setLabel('Reason for closing (optional)')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Any extra notes about this ticket...')
+        .setPlaceholder('Briefly describe why this ticket is being closed...')
         .setRequired(false)
         .setMaxLength(500);
 
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(outcomeInput),
-        new ActionRowBuilder().addComponents(reasonInput),
-      );
+      modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
 
       await interaction.showModal(modal);
     } catch (error) {
@@ -548,28 +525,13 @@ const closeTicketModalHandler = {
         return;
       }
 
-      const outcomeRaw = interaction.fields.getTextInputValue('outcome')?.trim().toLowerCase() || '';
-      if (outcomeRaw !== 'success' && outcomeRaw !== 'cancel') {
-        await interaction.reply({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle('❌ Invalid Outcome')
-              .setDescription('You must type exactly **success** or **cancel**.')
-              .setColor(0xED4245),
-          ],
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
 
-      const notes = interaction.fields.getTextInputValue('reason')?.trim() || '';
-      const closeReason = notes ? `${outcomeRaw} — ${notes}` : outcomeRaw;
+      const reason = interaction.fields.getTextInputValue('reason')?.trim() || '';
 
       const claimerId = permissionCheck.context?.ticketData?.claimedBy ?? null;
-      const result = await closeTicket(interaction.channel, interaction.user, closeReason);
+      const result = await closeTicket(interaction.channel, interaction.user, reason || 'Closed');
 
       if (result.success) {
         await interaction.editReply({
