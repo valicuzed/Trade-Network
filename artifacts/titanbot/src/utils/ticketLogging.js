@@ -23,7 +23,8 @@ export async function logTicketEvent({ client, guildId, event }) {
     if (event.type === 'close') {
       const tradeReason = (event.metadata?.tradeReason || '').trim();
       const isScamTicket = tradeReason.startsWith('Scam Report');
-      if (isScamTicket) return; // Never log scam ticket closes to the trades log
+      const isDisputeTicket = tradeReason === 'Dispute Ticket';
+      if (isScamTicket || isDisputeTicket) return; // Never log scam or dispute ticket closes to the trades log
 
       const logChannelId = config.ticketLogsChannelId || null;
       if (!logChannelId) return;

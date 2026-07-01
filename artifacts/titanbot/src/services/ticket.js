@@ -216,9 +216,18 @@ export async function createTicket(guild, member, categoryId, reason = 'No reaso
       );
     }
     
-    const staffMention1 = effectiveConfig.ticketStaffRoleId ? ` <@&${effectiveConfig.ticketStaffRoleId}>` : '';
-    const staffMention2 = effectiveConfig.ticketStaffRoleId2 ? ` <@&${effectiveConfig.ticketStaffRoleId2}>` : '';
-    const staffMention3 = effectiveConfig.ticketStaffRoleId3 ? ` <@&${effectiveConfig.ticketStaffRoleId3}>` : '';
+    let staffMention1 = effectiveConfig.ticketStaffRoleId ? ` <@&${effectiveConfig.ticketStaffRoleId}>` : '';
+    let staffMention2 = effectiveConfig.ticketStaffRoleId2 ? ` <@&${effectiveConfig.ticketStaffRoleId2}>` : '';
+    let staffMention3 = effectiveConfig.ticketStaffRoleId3 ? ` <@&${effectiveConfig.ticketStaffRoleId3}>` : '';
+
+    // Dispute tickets: suppress inherited staff role pings, ping admin role instead
+    if (reason === 'Dispute Ticket') {
+      const adminRole = guild.roles.cache.find(r => r.name.toLowerCase().includes('admin'));
+      staffMention1 = adminRole ? ` <@&${adminRole.id}>` : '';
+      staffMention2 = '';
+      staffMention3 = '';
+    }
+
     const extraUserMention = (extraUserId && extraUserId !== member.id) ? ` <@${extraUserId}>` : '';
     const messageContent = `${member.toString()}${extraUserMention}${staffMention1}${staffMention2}${staffMention3}`;
     
