@@ -485,15 +485,26 @@ const closeTicketHandler = {
         .setCustomId('ticket_close_modal')
         .setTitle('Close Ticket');
 
+      const outcomeInput = new TextInputBuilder()
+        .setCustomId('outcome')
+        .setLabel('Outcome (type: success / cancel)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('success  or  cancel')
+        .setRequired(true)
+        .setMaxLength(10);
+
       const reasonInput = new TextInputBuilder()
         .setCustomId('reason')
-        .setLabel('Reason for closing (optional)')
+        .setLabel('Notes (optional)')
         .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Briefly describe why this ticket is being closed...')
+        .setPlaceholder('Any extra notes...')
         .setRequired(false)
         .setMaxLength(500);
 
-      modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(outcomeInput),
+        new ActionRowBuilder().addComponents(reasonInput),
+      );
 
       await interaction.showModal(modal);
     } catch (error) {
@@ -525,13 +536,28 @@ const closeTicketModalHandler = {
         return;
       }
 
+      const outcomeRaw = interaction.fields.getTextInputValue('outcome')?.trim().toLowerCase() || '';
+      if (outcomeRaw !== 'success' && outcomeRaw !== 'cancel') {
+        await interaction.reply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle('❌ Invalid Outcome')
+              .setDescription('You must type exactly **success** or **cancel**.')
+              .setColor(0xED4245),
+          ],
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
       const deferSuccess = await InteractionHelper.safeDefer(interaction, { flags: MessageFlags.Ephemeral });
       if (!deferSuccess) return;
 
-      const reason = interaction.fields.getTextInputValue('reason')?.trim() || '';
+      const notes = interaction.fields.getTextInputValue('reason')?.trim() || '';
+      const closeReason = notes ? `${outcomeRaw} — ${notes}` : outcomeRaw;
 
       const claimerId = permissionCheck.context?.ticketData?.claimedBy ?? null;
-      const result = await closeTicket(interaction.channel, interaction.user, reason || 'Closed');
+      const result = await closeTicket(interaction.channel, interaction.user, closeReason);
 
       if (result.success) {
         await interaction.editReply({
